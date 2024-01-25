@@ -375,6 +375,7 @@ class Controller():
             target_yaw = 0.
             target_rpy_rates = np.zeros(3)
 
+
             command_type = Command(1)  # cmdFullState.
             args = [target_pos, target_vel, target_acc, target_yaw, target_rpy_rates]
         # elif iteration >= 13*self.CTRL_FREQ and iteration < 21*self.CTRL_FREQ:
