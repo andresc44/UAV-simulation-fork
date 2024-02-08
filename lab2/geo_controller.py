@@ -10,7 +10,7 @@ from enum import Enum
 from functools import wraps
 
 K_p = 10
-K_d = 10
+K_d = 5
 small_g = 9.8078
 
 
@@ -54,12 +54,12 @@ class GeoController:
         self.MIXER_MATRIX = np.array([[.5, -.5, 1], [.5, .5, -1], [-.5, .5, 1], [-.5, -.5, -1]])
         self.reset()
         # Initialize other needed fields
-        self.integral_rpy_e = None
-        self.last_rpy_e = None
-        self.integral_pos_e = None
-        self.last_rpy = None
-        self.last_pos_e = None
-        self.control_counter = None
+        self.integral_rpy_e = np.zeros(3)
+        self.last_rpy_e = np.zeros(3)
+        self.integral_pos_e = np.zeros(3)
+        self.last_rpy = np.zeros(3)
+        self.last_pos_e = np.zeros(3)
+        self.control_counter = 0
 
     def reset(self):
         """Resets the control classes.
