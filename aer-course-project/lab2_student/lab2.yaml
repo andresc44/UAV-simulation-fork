@@ -37,6 +37,7 @@ quadrotor_config:
   # (1) init_x specifies the drone's initial x-axis position as well as the radius of the circle
   # init_y_dot specifies the drone's initial velocoty as well as the reference speed to track the circle
   # You can set it to a smaller value at the beginning to facilitate the PD tunning, but you should change it back later
+  
   init_state:
     init_x: 5.0 # radius
     init_x_dot: 0
