@@ -3,8 +3,10 @@ import numpy as np
 import cv2
 import pandas as pd
 import os
+import math
 
-
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation
 #data in lab2_pose.csv and image_folder/output_folder/*
 
@@ -22,10 +24,106 @@ file_name = 'lab3_pose.csv'
 file_path = os.path.join(current_directory, file_name)
 image_dir = 'image_folder/output_folder'
 image_dir = os.path.join(current_directory, image_dir)
-image_jpgs = os.listdir(image_dir)
+image_jpgs = sorted(os.listdir(image_dir), key=None)
+
+def visualize_transform(T):
+    # Extract rotation matrix and translation vector from the transformation matrix
+    R = T[:3, :3]
+    t = T[:3, 3]
+
+    # Create a new figure
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Define a function to plot a coordinate frame
+    def plot_frame(ax, R, t, label):
+        ax.quiver(t[0], t[1], t[2], R[0, 0], R[1, 0], R[2, 0], color='r', length=0.1, arrow_length_ratio=0.3)
+        ax.quiver(t[0], t[1], t[2], R[0, 1], R[1, 1], R[2, 1], color='g', length=0.1, arrow_length_ratio=0.3)
+        ax.quiver(t[0], t[1], t[2], R[0, 2], R[1, 2], R[2, 2], color='b', length=0.1, arrow_length_ratio=0.3)
+        ax.text(t[0], t[1], t[2], label, color='k')
+
+    # Plot coordinate frame
+    plot_frame(ax, R, t, 'Transform')
+
+    # Set plot limits and labels
+    buffer = 0.2
+    ax.set_xlim([t[0] - buffer, t[0] + buffer])
+    ax.set_ylim([t[1] - buffer, t[1] + buffer])
+    ax.set_zlim([t[2] - buffer, t[2] + buffer])
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    # Show plot
+    plt.show()
 
 
-def get_target_location(image_file_path, K, d):
+
+########## DEPTH ###############################################################
+def calculate_depth_from_camera(df, i):
+    row = df[df['idx'] == i]
+    if row.empty:
+        raise ValueError("Index not found in DataFrame")
+    
+    row_np = row.values[0]
+    vehicle_translations = row_np[1:4].T
+    vehicle_quaternion = row_np[4:]
+    # print("quaternion: ", vehicle_quaternion)
+    
+    R_BW = Rotation.from_quat(vehicle_quaternion).as_matrix() #correct, orthogonal, det(R)==1 SO group
+    # R_CB = T_CB[:3, :3]
+    # print("R_CB", R_CB)
+    # det = np.linalg.det(R_CB)
+
+    # print("Determinant of the matrix: ")
+    # print(det)
+    # print(np.matmul(R_CB, R_CB.T))
+    # print("Rotation: ", R_BW)
+    # print("translation: ", vehicle_translations)
+    T_BW = np.eye(4)  # Identity matrix
+    T_BW[:3, :3] = R_BW  # Set rotation values
+    T_BW[:3, 3] = vehicle_translations  # Set translation values
+    
+    #T_BW is part of SE group, where its rotation is orthogonal and a pure rotation
+    #transformation from world to body frame
+    
+    # visualize_transform(T_BW)
+
+    #T_BW is formed, transform from world to base, 4x4
+    # T_WB = np.linalg.inv(T_BW) #transformation from body to world frame
+    # T_CW = np.dot(T_BW,T_CB) #correct, verified, part of SE
+    # print("original: ", T_BW)
+    # print("inverted: ", T_WB)
+    # print("transposed: ", T_BW.T)
+    # is_orthogonal = np.allclose(np.dot(R_BW, R_BW.T), np.eye(3))
+    # print("Is the matrix orthogonal? ", is_orthogonal)
+
+    # print("should be identity: ", np.matmul(T_BW.T, T_BW))
+    # print("T_CB (base to camera): \n", T_CB)
+    # print("T_BW (world to base): \n", T_BW)
+    # print("T_CW: \n", T_CW)
+    # visualize_transform(T_BW)
+    # visualize_transform(T_CW)
+    # T_WC = np.linalg.inv(T_CW)
+    # visualize_transform(T_WC)
+    # print("T_WC (camera to world): \n", T_WC)
+    
+    # T_BC = np.linalg.inv(T_CB)
+    # camera_origin = np.array([0, 0, 0, 1]).T #location of camera, 4x1
+    # cam_coords_in_world = np.dot(np.dot(T_BC, T_WB), camera_origin) #global location of camera, 4x1
+    # print(cam_coords_in_world)
+    # cam_height = cam_coords_in_world[2]
+    r_13 = R_BW[0][2]
+    r_23 = R_BW[1][2]
+    cam_height = vehicle_translations[2]
+    tilt_off_z = math.atan2(r_13, r_23) #tilt of camera from original face-down position
+    depth = math.cos(tilt_off_z) * cam_height #trigonometry. Approximated based off height and tilt, not pixel found
+    # print("cam height: ", cam_height, "m\ttilt: ", math.degrees(tilt_off_z), "\t approx depth: ", depth)
+    return cam_height #would be depth, but cant trust rotation information
+
+
+############ IMAGE PROCESSING ####################################################
+def get_target_location(image_file_path, K, d, depth):
     image_path = os.path.join(image_dir, image_file_path)
     image = cv2.imread(image_path)
     if image is None:
@@ -46,36 +144,45 @@ def get_target_location(image_file_path, K, d):
     hsv = cv2.cvtColor(undistorted_image, cv2.COLOR_BGR2HSV)
 
     # Define lower and upper bounds for green color in HSV
-    lower_green = np.array([30, 80, 40])
+    lower_green = np.array([35, 70, 20])
     upper_green = np.array([80, 255, 255])
 
     masked_image = cv2.inRange(hsv, lower_green, upper_green)
 
-    # cv2.imshow('masked', masked_image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+    cv2.imshow('masked', masked_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
     # Find contours in the masked_image
     contours, _ = cv2.findContours(masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    contour_image = cv2.drawContours(masked_image, contours, -1, (0, 255, 0), 3)
-
-    # cv2.imshow('Contours', contour_image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
 
     min_area= 100
-    max_area = 800
+    max_area = 700 #exclude green tape
+    min_aspect_ratio = 0.5  # Adjust as necessary
+    max_aspect_ratio = 2.0  # Adjust as necessary
 
     # Check if any contours are found
     if len(contours) > 0:
-        # Get the largest contour (assuming it corresponds to the circle)
-        largest_contour = max(contours, key=cv2.contourArea)
-        # Get the moments of the contour to compute the centroid
-        # print("Area size: ", cv2.contourArea(largest_contour))
-        if min_area < cv2.contourArea(largest_contour) < max_area: #Very small contour
+        valid_cnt = []
+        for cnt in contours:
+            if min_area < cv2.contourArea(cnt) < max_area:
+                _, _, w, h = cv2.boundingRect(cnt)
+                aspect_ratio = float(w) / h
+                if min_aspect_ratio < aspect_ratio < max_aspect_ratio:
+                    valid_cnt.append(cnt)
         
+        
+        if len(valid_cnt) > 0: #Very small contour  
+            # Get the largest contour (assuming it corresponds to the circle)
+            largest_contour = max(valid_cnt, key=cv2.contourArea)
+            # Get the moments of the contour to compute the centroid
+            print("Area size: ", cv2.contourArea(largest_contour))
+            cv2.drawContours(undistorted_image, [largest_contour], -1, (255, 0, 255), 3)
+            cv2.imshow('Contours', undistorted_image)
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
             M = cv2.moments(largest_contour)
+            
             # Calculate centroid coordinates
             centroidX = int(M["m10"] / M["m00"])
             centroidY = int(M["m01"] / M["m00"])
@@ -86,7 +193,7 @@ def get_target_location(image_file_path, K, d):
             f_x = K[0][0]
             f_y = K[1][1]
 
-            Z = 1 #need real depth
+            Z = depth #need real depth
             X = Z * (centroidX - c_x) / f_x
             Y = Z * (centroidY - c_y) / f_y
 
@@ -94,11 +201,16 @@ def get_target_location(image_file_path, K, d):
             return target_cam_coordinates # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
     return None
 
+
+
+########## TRANSFORMS ############################################################
+
 def tf_cam2vehicle(target_cam_coordinates, T_CB): #target_cam_coordinates is 4x1
     T_BC  = np.linalg.inv(T_CB) #4x4
     target_vehicle_coordinates = np.matmul(T_BC, target_cam_coordinates)
     return target_vehicle_coordinates #4x1
 
+   
 def tf_vehicle2world(target_vehicle_coordinates, df, i):
     row = df[df['idx'] == i]
     row_np = row.values[0]
@@ -124,6 +236,8 @@ def within_bounds(target_world_coordinates):
     y_constrained = min(max(y, -2), 2)
     return np.array([[x_constrained, y_constrained]])
 
+
+####### K-MEANS CLUSTERING##################################################
 def get_distance(point1, point2):
     x1, y1 = point1
     x2, y2 = point2
@@ -164,7 +278,7 @@ def recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_cent
     return cluster_centres
 
 
-
+############## MAIN ################################################################
 def main():
     K = np.array([              #Camera Intrinsic Matrix
         [698.86, 0.0, 306.91],
@@ -179,31 +293,36 @@ def main():
         [0.0, 0.0, 0.0, 1.0]
         ])
     df = pd.read_csv(file_path) #Vicon interial vehicle information,  x ∈ [−2.0, 2.0] m and y ∈ [−2.0, 2.0] m.
-
+    no_valid_images_found = True
     valid_world_targets = []
-    for i, image_file_path in enumerate(image_jpgs):
-        if i == 20:
-            break
-        depth = calculate_depth_from_camera(df, T_CB)#?????
+    for image_file_path in image_jpgs:
+        i = int(image_file_path[6:-4])
+        if i < 1200: #just skip to middle images for debugging
+            continue
+        depth = calculate_depth_from_camera(df, i)
         
-        target_cam_coordinates = get_target_location(image_file_path, K, d) #return 4x1
+        target_cam_coordinates = get_target_location(image_file_path, K, d, depth) #return 4x1
         # print("target_cam_coordinates: ", target_cam_coordinates)
         if isinstance(target_cam_coordinates, np.ndarray): #valid point found
             print("VALID IMAGE")
             target_vehicle_coordinates = tf_cam2vehicle(target_cam_coordinates, T_CB)
             # print("target_vehicle_coordinates: ", target_vehicle_coordinates)
+            # target_imu_coordinates = tf_vehicle2_viconTarget(target_vehicle_coordinates)
             target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, df, i)
             # print("target_world_coordinates: ", target_world_coordinates)
             corrected_target_world_coordinates = within_bounds(target_world_coordinates)
             # print("corrected_target_world_coordinates: ", corrected_target_world_coordinates)
 
-            if i==0:
+            if no_valid_images_found:
                 valid_world_targets = corrected_target_world_coordinates
+                no_valid_images_found = False
             else:
                 valid_world_targets = np.vstack((valid_world_targets, corrected_target_world_coordinates))
+        else:
+            print("INVALID IMAGE")
     
     valid_world_targets = np.array(valid_world_targets)
-    print("\nvalid_world_targets: ", valid_world_targets)
+    # print("\nvalid_world_targets: ", valid_world_targets)
 
     k_clusters = 6
     cluster_centres = np.random.uniform(low=-2, high=2, size=(k_clusters, 2))
@@ -216,11 +335,11 @@ def main():
     
     target_estimates = recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_centres)
         
-    print("6 targets estimated at: ")
-    print(target_estimates)
+    # print("6 targets estimated at: ")
+    # print(target_estimates)
     return target_estimates
 
 
 
 if __name__ == '__main__':
-    main()
+    target_estimates = main()
