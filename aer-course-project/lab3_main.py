@@ -156,16 +156,59 @@ def get_target_location(image_file_path, K, d, depth, T_WB, T_CB):
             f_x = K[0][0]
             f_y = K[1][1]
 
+            delta_x = centroidX - c_x
+            delta_y = centroidY - c_y
+
+            Z = depth #need real depth
+            X = Z * delta_x / f_x
+            Y = Z * delta_y / f_y
+
             #######################################################################
             #TODO: Use the T_WB matrix and T_CB(optional) to calculate the true depth of the centroid pixels
             #depth variable is defined as the depth at the c_x, c_y location
             #use the rotation and trig to understand new depth
+            T_BC = T_CB #unique matrix that happens to be its own inverse
+
+            T_WC = np.dot(T_WB, T_BC)
+            # visualize_transform(T_WC)
+
+            #IGNORE ALL COMMENTED MATH BELOW
+            # new_x_axis = T_WC[:3, 0]
+            # new_y_axis = T_WC[:3, 1]
+            # new_z_axis = T_WC[:3, 2]
+
+            # x_flat = new_x_axis.copy()
+            # x_flat[2] = 0
+            # x_mag = np.linalg.norm(x_flat)
+
+            # y_flat = new_y_axis.copy()
+            # y_flat[2] = 0
+            # y_mag = np.linalg.norm(y_flat)
+
+            # x_angle_difference = np.arccos(new_x_axis, x_flat / x_mag) #x_Beta
+            # y_angle_difference = np.arccos(new_y_axis, y_flat / y_mag)
+
+            # if new_x_axis[2] < 0:
+            #     x_angle_difference = -x_angle_difference 
+
+            # if new_y_axis[2] < 0:
+            #     y_angle_difference = -y_angle_difference
+            
+            # x_alpha = np.arctan(X/Z)
+            # x_gamma = math.pi()/2 + x_angle_difference
+            # x_phi = math.pi() - x_gamma - x_alpha
+            # x_l = math.sin(x_gamma) * Z / math.sin(x_phi)
+
+            # x_alpha = np.arctan(X/Z)
+            # x_gamma = math.pi()/2 + x_angle_difference
+            # x_phi = math.pi() - x_gamma - x_alpha
+            # x_l = math.sin(x_gamma) * Z / math.sin(x_phi)
+
+            # Z_x
+            # Z_y
 
 
 
-            Z = depth #need real depth
-            X = Z * (centroidX - c_x) / f_x
-            Y = Z * (centroidY - c_y) / f_y
 
             target_cam_coordinates = np.array([[X], [Y], [Z], [1]])
             return target_cam_coordinates # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
