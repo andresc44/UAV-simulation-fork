@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation
 
-#TODO: -verify tf_vehicle2world !!!!
-    #  -improve the way depth is determined by including pixel location information (low priority)
+#TODO:
+    #  -improve the way depth is determined by including pixel location information
     #  -check for edge cases for image pipeline
     #  -after any major changes, check for clustering in Kmeans chart
 
@@ -73,75 +73,29 @@ def calculate_depth_from_camera(df, i):
         raise ValueError("Index not found in DataFrame")
     
     row_np = row.values[0]
-    # print("\n\ni: ", i)
     vehicle_translations = row_np[1:4]
-    # print("translations: ", vehicle_translations)
     vehicle_quaternion = np.append(row_np[5:8],row_np[4]) #xyzw
-    # print("vehicle_quaternion: ",vehicle_quaternion)
     
-    R_BW = Rotation.from_quat(vehicle_quaternion).as_matrix() #correct, orthogonal, det(R)==1 SO group
-    # R_CB = T_CB[:3, :3]
-    # print("R_CB", R_CB)
-    # det = np.linalg.det(R_CB)
+    R_WB = Rotation.from_quat(vehicle_quaternion).as_matrix() #correct, orthogonal, det(R)==1 SO group
+    T_WB = np.eye(4)  # Identity matrix
+    T_WB[:3, :3] = R_WB  # Set rotation values
+    T_WB[:3, 3] = vehicle_translations  # Set translation values
 
-    # print("Determinant of the matrix: ")
-    # print(det)
-    # print(np.matmul(R_CB, R_CB.T))
-    # print("Rotation: ", R_BW)
-    # print("translation: ", vehicle_translations)
-    # T_BW = np.eye(4)  # Identity matrix
-    # T_BW[:3, :3] = R_BW  # Set rotation values
-    # T_BW[:3, 3] = vehicle_translations  # Set translation values
-    
-    #T_BW is part of SE group, where its rotation is orthogonal and a pure rotation
-    #transformation from world to body frame
-    # print("R_BW: \n", R_BW)
-    # print("T_BW: \n", T_BW)
-    # visualize_transform(T_BW)
-
-    #T_BW is formed, transform from world to base, 4x4
-    # T_WB = np.linalg.inv(T_BW) #transformation from body to world frame
-    # T_CW = np.dot(T_BW,T_CB) #correct, verified, part of SE
-    # print("original: ", T_BW)
-    # print("inverted: ", T_WB)
-    # print("transposed: ", T_BW.T)
-    # is_orthogonal = np.allclose(np.dot(R_BW, R_BW.T), np.eye(3))
-    # print("Is the matrix orthogonal? ", is_orthogonal)
-
-    # print("should be identity: ", np.matmul(T_BW.T, T_BW))
-    # print("T_CB (base to camera): \n", T_CB)
-    # print("T_BW (world to base): \n", T_BW)
-    # print("T_CW: \n", T_CW)
-    # visualize_transform(T_BW)
-    # visualize_transform(T_CW)
-    # T_WC = np.linalg.inv(T_CW)
-    # visualize_transform(T_WC)
-    # print("T_WC (camera to world): \n", T_WC)
-    
-    # T_BC = np.linalg.inv(T_CB)
-    # camera_origin = np.array([0, 0, 0, 1]).T #location of camera, 4x1
-    # cam_coords_in_world = np.dot(np.dot(T_BC, T_WB), camera_origin) #global location of camera, 4x1
-    # print(cam_coords_in_world)
-    # cam_height = cam_coords_in_world[2]
     cam_height = vehicle_translations[2]
-    angle_difference = np.arccos(np.dot(R_BW[:, 2], np.array([0, 0, 1])))
-    angle_difference_degrees = np.degrees(angle_difference)
-
+    angle_difference = np.arccos(np.dot(R_WB[:, 2], np.array([0, 0, 1])))
     depth = cam_height / math.cos(angle_difference) #trigonometry. Approximated based off height and tilt, not pixel found
-    # print("tilt: ", angle_difference_degrees, "\tcam height: ", cam_height, "m\t approx depth: ", depth)
-    return depth, R_BW, vehicle_translations #would be depth, but cant trust rotation information
+    # print("tilt: ", np.degrees(angle_difference), "\tcam height: ", cam_height, "m\t approx depth: ", depth)
+    return depth, T_WB #would be depth, but cant trust rotation information
 
 
 ############ IMAGE PROCESSING ####################################################
-def get_target_location(image_file_path, K, d, depth):
+def get_target_location(image_file_path, K, d, depth, T_WB, T_CB):
     image_path = os.path.join(image_dir, image_file_path)
     image = cv2.imread(image_path)
     if image is None:
         print("No image")
         return None
     
-    #instrisic K
-    #distortion coefficents d
     # cv2.imshow('image', image)
     # cv2.waitKey(0)
     # cv2.destroyAllWindows()
@@ -166,10 +120,10 @@ def get_target_location(image_file_path, K, d, depth):
     # Find contours in the masked_image
     contours, _ = cv2.findContours(masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
-    min_area= 100
-    max_area = 700 #exclude green tape
-    min_aspect_ratio = 0.5  # Adjust as necessary
-    max_aspect_ratio = 2.0  # Adjust as necessary
+    min_area= 150
+    max_area = 600 #exclude green tape
+    min_aspect_ratio = 0.5
+    max_aspect_ratio = 1.5
 
     # Check if any contours are found
     if len(contours) > 0:
@@ -185,7 +139,6 @@ def get_target_location(image_file_path, K, d, depth):
         if len(valid_cnt) > 0: #Very small contour  
             # Get the largest contour (assuming it corresponds to the circle)
             largest_contour = max(valid_cnt, key=cv2.contourArea)
-            # Get the moments of the contour to compute the centroid
             # print("Area size: ", cv2.contourArea(largest_contour))
             # cv2.drawContours(undistorted_image, [largest_contour], -1, (255, 0, 255), 3)
             # cv2.imshow('Contours', undistorted_image)
@@ -202,6 +155,13 @@ def get_target_location(image_file_path, K, d, depth):
             c_y = K[1][2]
             f_x = K[0][0]
             f_y = K[1][1]
+
+            #######################################################################
+            #TODO: Use the T_WB matrix and T_CB(optional) to calculate the true depth of the centroid pixels
+            #depth variable is defined as the depth at the c_x, c_y location
+            #use the rotation and trig to understand new depth
+
+
 
             Z = depth #need real depth
             X = Z * (centroidX - c_x) / f_x
@@ -221,25 +181,8 @@ def tf_cam2vehicle(target_cam_coordinates, T_CB): #target_cam_coordinates is 4x1
     return target_vehicle_coordinates #4x1
 
    
-def tf_vehicle2world(target_vehicle_coordinates, R_BW, vehicle_translations):
-    #target_vehicle_coordinates is 4x1, R_BW is 3x3 from map to vehicle frame, vehicle_translations is len 3
-    #use visualize_transform fxn to see full transformations
-
-    R_WB = np.linalg.inv(R_BW) #rotate in opposite direction
-    rot_T_WB = np.eye(4)
-    # rot_T_WB[:3, :3] = R_WB #affine pure rot matrix
-    rot_T_WB[:3, :3] = R_BW #affine pure rot matrix
-
-    # visualize_transform(rot_T_WB)
-    # print("rot_T_WB: ", rot_T_WB)
-    
-    vehicle_translations= np.append(vehicle_translations, 0)
-    vehicle_translations = vehicle_translations.reshape(4, 1)
-
-    points_rotated = np.dot(rot_T_WB, target_vehicle_coordinates)
-    # print("points_rotated: ", points_rotated)
-    # print("vehicle_translations: ", vehicle_translations)
-    points_world = vehicle_translations + points_rotated
+def tf_vehicle2world(target_vehicle_coordinates, T_WB):
+    points_world = np.dot(T_WB, target_vehicle_coordinates)
     return points_world #4x1
 
 def within_bounds(target_world_coordinates):
@@ -367,15 +310,15 @@ def main():
         print("i: ", i)
         # if i < 1200: #just skip to middle images for debugging
         #     continue
-        depth, R_BW, vehicle_translations = calculate_depth_from_camera(df, i)
+        depth,T_WB = calculate_depth_from_camera(df, i)
         
-        target_cam_coordinates = get_target_location(image_file_path, K, d, depth) #return 4x1
+        target_cam_coordinates = get_target_location(image_file_path, K, d, depth, T_WB, T_CB) #return 4x1
         # print("target_cam_coordinates: ", target_cam_coordinates)
         if isinstance(target_cam_coordinates, np.ndarray): #valid point found
             print("VALID IMAGE")
             target_vehicle_coordinates = tf_cam2vehicle(target_cam_coordinates, T_CB)
             # print("target_vehicle_coordinates: \n", target_vehicle_coordinates)
-            target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, R_BW, vehicle_translations)
+            target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates,T_WB)
             # print("target_world_coordinates: \n", target_world_coordinates)
             corrected_target_world_coordinates = within_bounds(target_world_coordinates)
             # print("corrected_target_world_coordinates: \n", corrected_target_world_coordinates)
