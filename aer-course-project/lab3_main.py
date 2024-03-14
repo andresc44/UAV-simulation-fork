@@ -8,6 +8,13 @@ import math
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.spatial.transform import Rotation
+
+#TODO: -verify tf_vehicle2world !!!!
+    #  -improve the way depth is determined by including pixel location information (low priority)
+    #  -check for edge cases for image pipeline
+    #  -after any major changes, check for clustering in Kmeans chart
+
+
 #data in lab2_pose.csv and image_folder/output_folder/*
 
 #6 targets
@@ -16,8 +23,8 @@ from scipy.spatial.transform import Rotation
 #six targets 
 #Hint: You should use more than one image per target to improve your estimation.
 
-ITERATIONS = 20
-
+ITERATIONS = 50
+TOLERANCE = 0.3
 np.random.seed(1217)
 current_directory = os.getcwd()
 file_name = 'lab3_pose.csv'
@@ -66,9 +73,11 @@ def calculate_depth_from_camera(df, i):
         raise ValueError("Index not found in DataFrame")
     
     row_np = row.values[0]
-    vehicle_translations = row_np[1:4].T
-    vehicle_quaternion = row_np[4:]
-    # print("quaternion: ", vehicle_quaternion)
+    # print("\n\ni: ", i)
+    vehicle_translations = row_np[1:4]
+    # print("translations: ", vehicle_translations)
+    vehicle_quaternion = np.append(row_np[5:8],row_np[4]) #xyzw
+    # print("vehicle_quaternion: ",vehicle_quaternion)
     
     R_BW = Rotation.from_quat(vehicle_quaternion).as_matrix() #correct, orthogonal, det(R)==1 SO group
     # R_CB = T_CB[:3, :3]
@@ -80,13 +89,14 @@ def calculate_depth_from_camera(df, i):
     # print(np.matmul(R_CB, R_CB.T))
     # print("Rotation: ", R_BW)
     # print("translation: ", vehicle_translations)
-    T_BW = np.eye(4)  # Identity matrix
-    T_BW[:3, :3] = R_BW  # Set rotation values
-    T_BW[:3, 3] = vehicle_translations  # Set translation values
+    # T_BW = np.eye(4)  # Identity matrix
+    # T_BW[:3, :3] = R_BW  # Set rotation values
+    # T_BW[:3, 3] = vehicle_translations  # Set translation values
     
     #T_BW is part of SE group, where its rotation is orthogonal and a pure rotation
     #transformation from world to body frame
-    
+    # print("R_BW: \n", R_BW)
+    # print("T_BW: \n", T_BW)
     # visualize_transform(T_BW)
 
     #T_BW is formed, transform from world to base, 4x4
@@ -113,13 +123,13 @@ def calculate_depth_from_camera(df, i):
     # cam_coords_in_world = np.dot(np.dot(T_BC, T_WB), camera_origin) #global location of camera, 4x1
     # print(cam_coords_in_world)
     # cam_height = cam_coords_in_world[2]
-    r_13 = R_BW[0][2]
-    r_23 = R_BW[1][2]
     cam_height = vehicle_translations[2]
-    tilt_off_z = math.atan2(r_13, r_23) #tilt of camera from original face-down position
-    depth = math.cos(tilt_off_z) * cam_height #trigonometry. Approximated based off height and tilt, not pixel found
-    # print("cam height: ", cam_height, "m\ttilt: ", math.degrees(tilt_off_z), "\t approx depth: ", depth)
-    return cam_height #would be depth, but cant trust rotation information
+    angle_difference = np.arccos(np.dot(R_BW[:, 2], np.array([0, 0, 1])))
+    angle_difference_degrees = np.degrees(angle_difference)
+
+    depth = cam_height / math.cos(angle_difference) #trigonometry. Approximated based off height and tilt, not pixel found
+    # print("tilt: ", angle_difference_degrees, "\tcam height: ", cam_height, "m\t approx depth: ", depth)
+    return depth, R_BW, vehicle_translations #would be depth, but cant trust rotation information
 
 
 ############ IMAGE PROCESSING ####################################################
@@ -137,9 +147,9 @@ def get_target_location(image_file_path, K, d, depth):
     # cv2.destroyAllWindows()
     undistorted_image = cv2.undistort(image, K, d) #Get corrected image
     
-    cv2.imshow('undistorted', undistorted_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.imshow('undistorted', undistorted_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     hsv = cv2.cvtColor(undistorted_image, cv2.COLOR_BGR2HSV)
 
@@ -149,9 +159,9 @@ def get_target_location(image_file_path, K, d, depth):
 
     masked_image = cv2.inRange(hsv, lower_green, upper_green)
 
-    cv2.imshow('masked', masked_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.imshow('masked', masked_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
 
     # Find contours in the masked_image
     contours, _ = cv2.findContours(masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -176,11 +186,11 @@ def get_target_location(image_file_path, K, d, depth):
             # Get the largest contour (assuming it corresponds to the circle)
             largest_contour = max(valid_cnt, key=cv2.contourArea)
             # Get the moments of the contour to compute the centroid
-            print("Area size: ", cv2.contourArea(largest_contour))
-            cv2.drawContours(undistorted_image, [largest_contour], -1, (255, 0, 255), 3)
-            cv2.imshow('Contours', undistorted_image)
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
+            # print("Area size: ", cv2.contourArea(largest_contour))
+            # cv2.drawContours(undistorted_image, [largest_contour], -1, (255, 0, 255), 3)
+            # cv2.imshow('Contours', undistorted_image)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
             M = cv2.moments(largest_contour)
             
             # Calculate centroid coordinates
@@ -206,27 +216,30 @@ def get_target_location(image_file_path, K, d, depth):
 ########## TRANSFORMS ############################################################
 
 def tf_cam2vehicle(target_cam_coordinates, T_CB): #target_cam_coordinates is 4x1
-    T_BC  = np.linalg.inv(T_CB) #4x4
+    T_BC  = np.linalg.inv(T_CB) #4x4, is equal to its inverse
     target_vehicle_coordinates = np.matmul(T_BC, target_cam_coordinates)
     return target_vehicle_coordinates #4x1
 
    
-def tf_vehicle2world(target_vehicle_coordinates, df, i):
-    row = df[df['idx'] == i]
-    row_np = row.values[0]
-    # print("row_np: ", row_np)
-    vehicle_translations = row_np[1:4].T
-    vehicle_quaternion = row_np[4:]
-    
-    # print("vehicle_translations: ", vehicle_translations)
-    # print("vehicle_quaternion: ", vehicle_quaternion)
+def tf_vehicle2world(target_vehicle_coordinates, R_BW, vehicle_translations):
+    #target_vehicle_coordinates is 4x1, R_BW is 3x3 from map to vehicle frame, vehicle_translations is len 3
+    #use visualize_transform fxn to see full transformations
 
-    rotation_matrix = Rotation.from_quat(vehicle_quaternion).as_matrix()
-    T_BW = np.eye(4)  # Identity matrix
-    T_BW[:3, :3] = rotation_matrix  # Set rotation values
-    T_BW[:3, 3] = vehicle_translations  # Set translation values
-    T_WB  = np.linalg.inv(T_BW)
-    points_world = np.matmul(T_WB, target_vehicle_coordinates)
+    R_WB = np.linalg.inv(R_BW) #rotate in opposite direction
+    rot_T_WB = np.eye(4)
+    # rot_T_WB[:3, :3] = R_WB #affine pure rot matrix
+    rot_T_WB[:3, :3] = R_BW #affine pure rot matrix
+
+    # visualize_transform(rot_T_WB)
+    # print("rot_T_WB: ", rot_T_WB)
+    
+    vehicle_translations= np.append(vehicle_translations, 0)
+    vehicle_translations = vehicle_translations.reshape(4, 1)
+
+    points_rotated = np.dot(rot_T_WB, target_vehicle_coordinates)
+    # print("points_rotated: ", points_rotated)
+    # print("vehicle_translations: ", vehicle_translations)
+    points_world = vehicle_translations + points_rotated
     return points_world #4x1
 
 def within_bounds(target_world_coordinates):
@@ -235,7 +248,6 @@ def within_bounds(target_world_coordinates):
     x_constrained = min(max(x, -2), 2)
     y_constrained = min(max(y, -2), 2)
     return np.array([[x_constrained, y_constrained]])
-
 
 ####### K-MEANS CLUSTERING##################################################
 def get_distance(point1, point2):
@@ -246,21 +258,22 @@ def get_distance(point1, point2):
     return distance
 
 def assign_cluster(cluster_centres, valid_world_targets): #6x2, ?x2
-    min_dist = float('inf')
+    
     cluster_ids = []
     for point in valid_world_targets:
-        for id, cluster_point in enumerate(cluster_centres):
+        min_dist = float('inf')
+        for c_id, cluster_point in enumerate(cluster_centres):
             distance = get_distance(point, cluster_point)
             if distance < min_dist:
                 min_dist = distance
-                cluster_id = id
+                cluster_id = c_id
         cluster_ids.append(cluster_id)
     cluster_ids = np.array(cluster_ids)
     return cluster_ids
 
-def recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_centres): #?, ?x2
-    for id in range(k_clusters):
-        mask = (cluster_ids == id)
+def recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_centres):
+    for c_id in range(k_clusters):
+        mask = (cluster_ids == c_id)
         members = valid_world_targets[mask]
         num_members = len(members)
         if num_members == 0:
@@ -272,10 +285,64 @@ def recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_cent
             y_sum += point[1]
         x_centre = x_sum / num_members
         y_centre = y_sum / num_members
-        cluster_centres[id] = [x_centre, y_centre]
+        cluster_centres[c_id] = [x_centre, y_centre]
     cluster_centres = np.array(cluster_centres)
 
     return cluster_centres
+
+def filter_coordinates(cluster_centres, datapoints, tol):
+    filtered_coords = []
+    for coord in datapoints:
+        for centre in cluster_centres:
+            distance = get_distance(centre, coord)
+            if distance <= tol:
+                filtered_coords.append(coord)
+                break 
+    clean_targets = np.array(filtered_coords)
+    return clean_targets
+
+def mini_Kmeans(k_clusters, datapoints, cluster_centres):
+    cluster_ids = assign_cluster(cluster_centres, datapoints) #1D array of length = len(datapoints)
+    for _ in range(ITERATIONS):
+        cluster_centres = recentre_clusters(cluster_ids, k_clusters, datapoints, cluster_centres)
+        cluster_ids = assign_cluster(cluster_centres, datapoints)
+    estimated_final_centres = recentre_clusters(cluster_ids, k_clusters, datapoints, cluster_centres)
+    return estimated_final_centres
+
+def plot_Kmeans_results(datapoints, clusters):
+    
+    plt.figure(figsize=(8, 6))
+    plt.scatter(datapoints[:, 0], datapoints[:, 1], color='blue', label='Datapoints')
+    plt.scatter(clusters[:, 0], clusters[:, 1], color='red', label='Clusters')
+    plt.title('Overlay of Scatter Plots')
+    plt.xlabel('X')
+    plt.ylabel('Y')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def apply_full_KMeans(valid_world_targets):
+    k_clusters = 6
+    cluster_centres = np.array([
+        [-1.0, 1.0],
+        [0.0, -1.0],
+        [-1.0, -1.0],
+        [1.0, 1.0],
+        [1.0, 0.0],
+        [1.5, -1.0]
+    ])
+    ordinary_centres = mini_Kmeans(k_clusters, valid_world_targets, cluster_centres)
+    plot_Kmeans_results(valid_world_targets, ordinary_centres)
+    
+    clean_targets = filter_coordinates(ordinary_centres, valid_world_targets, TOLERANCE)
+    clean_centres = mini_Kmeans(k_clusters, clean_targets, ordinary_centres)
+    plot_Kmeans_results(clean_targets, clean_centres)
+
+    ultra_clean_targets = filter_coordinates(clean_centres, clean_targets, 0.1)
+    ultra_clean_centres = mini_Kmeans(k_clusters, ultra_clean_targets, clean_centres)
+    plot_Kmeans_results(ultra_clean_targets, ultra_clean_centres)
+
+    return ultra_clean_centres
 
 
 ############## MAIN ################################################################
@@ -297,21 +364,21 @@ def main():
     valid_world_targets = []
     for image_file_path in image_jpgs:
         i = int(image_file_path[6:-4])
-        if i < 1200: #just skip to middle images for debugging
-            continue
-        depth = calculate_depth_from_camera(df, i)
+        print("i: ", i)
+        # if i < 1200: #just skip to middle images for debugging
+        #     continue
+        depth, R_BW, vehicle_translations = calculate_depth_from_camera(df, i)
         
         target_cam_coordinates = get_target_location(image_file_path, K, d, depth) #return 4x1
         # print("target_cam_coordinates: ", target_cam_coordinates)
         if isinstance(target_cam_coordinates, np.ndarray): #valid point found
             print("VALID IMAGE")
             target_vehicle_coordinates = tf_cam2vehicle(target_cam_coordinates, T_CB)
-            # print("target_vehicle_coordinates: ", target_vehicle_coordinates)
-            # target_imu_coordinates = tf_vehicle2_viconTarget(target_vehicle_coordinates)
-            target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, df, i)
-            # print("target_world_coordinates: ", target_world_coordinates)
+            # print("target_vehicle_coordinates: \n", target_vehicle_coordinates)
+            target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, R_BW, vehicle_translations)
+            # print("target_world_coordinates: \n", target_world_coordinates)
             corrected_target_world_coordinates = within_bounds(target_world_coordinates)
-            # print("corrected_target_world_coordinates: ", corrected_target_world_coordinates)
+            # print("corrected_target_world_coordinates: \n", corrected_target_world_coordinates)
 
             if no_valid_images_found:
                 valid_world_targets = corrected_target_world_coordinates
@@ -322,24 +389,10 @@ def main():
             print("INVALID IMAGE")
     
     valid_world_targets = np.array(valid_world_targets)
-    # print("\nvalid_world_targets: ", valid_world_targets)
-
-    k_clusters = 6
-    cluster_centres = np.random.uniform(low=-2, high=2, size=(k_clusters, 2))
-    # print("random cluster centres: ", cluster_centres, "\n")
-    cluster_ids = assign_cluster(cluster_centres, valid_world_targets) #1D array of length = len(valid_world_targets)
-
-    for _ in range(ITERATIONS):
-        cluster_centres = recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_centres)
-        cluster_ids = assign_cluster(cluster_centres, valid_world_targets)
-    
-    target_estimates = recentre_clusters(cluster_ids, k_clusters, valid_world_targets, cluster_centres)
-        
-    # print("6 targets estimated at: ")
-    # print(target_estimates)
-    return target_estimates
-
-
+    final_clusters_prediction = apply_full_KMeans(valid_world_targets)
+    print("6 targets estimated at: ")
+    print(final_clusters_prediction)
+    return final_clusters_prediction
 
 if __name__ == '__main__':
     target_estimates = main()
