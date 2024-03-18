@@ -27,6 +27,7 @@ numpy = "^1.22.1"
 Mosek = "^9.3.14"
 termcolor = "^1.1.0"
 rich = "^12.5.1 "
+opencv-python = "^4.8.0"
 
 [tool.poetry.dev-dependencies]
 
