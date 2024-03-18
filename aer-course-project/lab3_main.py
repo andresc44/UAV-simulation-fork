@@ -84,8 +84,12 @@ def get_target_location(image_file_path, camera_calib, d, depth, t_matrix_wb, t_
     # Define lower and upper bounds for green color in HSV
     lower_green = np.array([35, 70, 20])
     upper_green = np.array([80, 255, 255])
+    white_sensitivity = 100
+    lower_white = np.array([0, 0, 255 - white_sensitivity])
+    upper_white = np.array([255, white_sensitivity, 255])
 
     masked_image = cv2.inRange(hsv, lower_green, upper_green)
+    white_masked_image = cv2.inRange(hsv, lower_white, upper_white)
 
     # cv2.imshow('masked', masked_image)
     # cv2.waitKey(0)
@@ -93,30 +97,42 @@ def get_target_location(image_file_path, camera_calib, d, depth, t_matrix_wb, t_
 
     # Find contours in the masked_image
     contours, _ = cv2.findContours(masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    white_contours, _ = cv2.findContours(white_masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
     min_area = 150
     max_area = 600  # exclude green tape
-    min_aspect_ratio = 0.5
+    min_aspect_ratio = 0.6667
     max_aspect_ratio = 1.5
 
     # Check if any contours are found
     if len(contours) > 0:
         valid_cnt = []
+        valid_rect = []
         for cnt in contours:
             if min_area < cv2.contourArea(cnt) < max_area:
-                _, _, w, h = cv2.boundingRect(cnt)
-                aspect_ratio = float(w) / h
+                rect = np.int16(cv2.boundingRect(cnt))
+                aspect_ratio = float(rect[2]) / rect[3]
+
                 if min_aspect_ratio < aspect_ratio < max_aspect_ratio:
-                    valid_cnt.append(cnt)
+                    for white_cnt in white_contours:
+                        white_rect = np.int16(cv2.boundingRect(white_cnt))
+                        if (white_rect[0] < rect[0]) and ((white_rect[0] + white_rect[2]) > (rect[0] + rect[2])) and (white_rect[1] < rect[1]) and (
+                                (white_rect[1] + white_rect[3]) > (rect[1] + rect[3])):
+                            valid_cnt.append(cnt)
+                            valid_rect.append(rect)
+                            # output_img = undistorted_image.copy()
+                            # output_img[np.where(masked_image == 0)] = 0
+                            # output_img[np.where(white_masked_image != 0)] = 255
+                            # plt.imshow(output_img)
+                            # plt.show()
+                            break
 
-        if len(valid_cnt) > 0:  # Very small contour
-            # Get the largest contour (assuming it corresponds to the circle)
-            largest_contour = max(valid_cnt, key=cv2.contourArea)
-            contour_moments = cv2.moments(largest_contour)
-
-            # Calculate centroid coordinates
-            centroid_x = int(contour_moments["m10"] / contour_moments["m00"])
-            centroid_y = int(contour_moments["m01"] / contour_moments["m00"])
+        # if len(valid_cnt) > 0:
+        for i in range(len(valid_cnt)):
+            this_contour = valid_cnt[i]
+            this_rect = valid_rect[i]
+            centroid_x = this_rect[0] + this_rect[2] / 2
+            centroid_y = this_rect[1] + this_rect[3] / 2
 
             c_x = camera_calib[0][2]
             c_y = camera_calib[1][2]
@@ -138,7 +154,6 @@ def get_target_location(image_file_path, camera_calib, d, depth, t_matrix_wb, t_
             t_matrix_wc = np.dot(t_matrix_wb, t_matrix_cb)
             target_cam_coordinates = np.array([[x], [y], [z], [1]])
             return target_cam_coordinates  # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
-    return None
 
 
 # ---------------- TRANSFORMS ---------------- #
@@ -227,11 +242,11 @@ def mini_k_means(k_clusters, datapoints, cluster_centres):
     return estimated_final_centres
 
 
-def plot_k_means_results(datapoints, clusters):
+def plot_k_means_results(datapoints, clusters, label='targets'):
     plt.figure(figsize=(8, 6))
     plt.scatter(datapoints[:, 0], datapoints[:, 1], color='blue', label='Datapoints')
     plt.scatter(clusters[:, 0], clusters[:, 1], color='red', label='Clusters')
-    plt.title('Overlay of Scatter Plots')
+    plt.title('Overlay of Scatter Plots - ' + label)
     plt.xlabel('X')
     plt.ylabel('Y')
     plt.legend()
@@ -250,15 +265,15 @@ def apply_full_k_means(valid_world_targets):
         [1.5, -1.0]
     ])
     ordinary_centres = mini_k_means(k_clusters, valid_world_targets, cluster_centres)
-    plot_k_means_results(valid_world_targets, ordinary_centres)
+    plot_k_means_results(valid_world_targets, ordinary_centres, 'Ordinary Centres')
 
     clean_targets = filter_coordinates(ordinary_centres, valid_world_targets, TOLERANCE)
     clean_centres = mini_k_means(k_clusters, clean_targets, ordinary_centres)
-    plot_k_means_results(clean_targets, clean_centres)
+    plot_k_means_results(clean_targets, clean_centres, 'Clean Centres')
 
     ultra_clean_targets = filter_coordinates(clean_centres, clean_targets, 0.1)
     ultra_clean_centres = mini_k_means(k_clusters, ultra_clean_targets, clean_centres)
-    plot_k_means_results(ultra_clean_targets, ultra_clean_centres)
+    plot_k_means_results(ultra_clean_targets, ultra_clean_centres, 'Ultra Centres')
 
     return ultra_clean_centres
 
@@ -282,15 +297,15 @@ def main():
     valid_world_targets = []
     for image_file_path in image_jpgs:
         i = int(image_file_path[6:-4])
-        print("i: ", i)
         depth, t_matrix_wb = calculate_depth_from_camera(df, i)
 
         target_cam_coordinates = get_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, depth, t_matrix_wb, t_matrix_cb)  # return 4x1
         if isinstance(target_cam_coordinates, np.ndarray):  # valid point found
-            print("VALID IMAGE")
+            # print("VALID IMAGE")
             target_vehicle_coordinates = tf_cam2vehicle(target_cam_coordinates, t_matrix_cb)
             target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, t_matrix_wb)
             corrected_target_world_coordinates = within_bounds(target_world_coordinates)
+            print(f"image #: {i} - Valid")
 
             if no_valid_images_found:
                 valid_world_targets = corrected_target_world_coordinates
@@ -298,7 +313,7 @@ def main():
             else:
                 valid_world_targets = np.vstack((valid_world_targets, corrected_target_world_coordinates))
         else:
-            print("INVALID IMAGE")
+            print(f"image #: {i} - Invalid")
 
     valid_world_targets = np.array(valid_world_targets)
     final_clusters_prediction = apply_full_k_means(valid_world_targets)
