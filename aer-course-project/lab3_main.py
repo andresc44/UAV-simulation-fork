@@ -12,15 +12,25 @@ from scipy.spatial.transform import Rotation
 #  -check for edge cases for image pipeline
 #  -after any major changes, check for clustering in Kmeans chart
 
-ITERATIONS = 50
-TOLERANCE = 0.3
+k_means_iterations = 50
+k_means_tolerance = 0.3
+min_area = 150
+max_area = 600  # exclude green tape
+min_aspect_ratio = 0.6667
+max_aspect_ratio = 1.5
 np.random.seed(1217)
+lower_green = np.array([35, 70, 20])
+upper_green = np.array([80, 255, 255])
+white_sensitivity = 100
+lower_white = np.array([0, 0, 255 - white_sensitivity])
+upper_white = np.array([255, white_sensitivity, 255])
 current_directory = os.getcwd()
 file_name = 'lab3_pose.csv'
 file_path = os.path.join(current_directory, file_name)
 image_dir = 'image_folder/output_folder'
 image_dir = os.path.join(current_directory, image_dir)
-image_jpgs = sorted(os.listdir(image_dir), key=None)
+image_frames = sorted([int(i[6:-4]) for i in os.listdir(image_dir)])
+image_jpgs = [f'{image_dir}/image_{j}.jpg' for j in image_frames]
 
 
 def visualize_transform(t_matrix):
@@ -50,14 +60,10 @@ def visualize_transform(t_matrix):
 
 
 # ---------------- DEPTH ---------------- #
-def calculate_depth_from_camera(df, i):
-    row = df[df['idx'] == i]
-    if row.empty:
-        raise ValueError("Index not found in DataFrame")
+def calculate_depth_from_camera(frame_state):
 
-    row_np = row.values[0]
-    vehicle_translations = row_np[1:4]
-    vehicle_quaternion = np.append(row_np[5:8], row_np[4])  # x-y-z-w
+    vehicle_translations = np.array([frame_state.p_x, frame_state.p_y, frame_state.p_z])
+    vehicle_quaternion = np.array([frame_state.q_x, frame_state.q_y, frame_state.q_z, frame_state.q_w])
 
     r_matrix_wb = Rotation.from_quat(vehicle_quaternion).as_matrix()  # correct, orthogonal, det(R)==1 SO group
     t_matrix_wb = np.eye(4)  # Identity matrix
@@ -65,44 +71,30 @@ def calculate_depth_from_camera(df, i):
     t_matrix_wb[:3, 3] = vehicle_translations  # Set translation values
 
     cam_height = vehicle_translations[2]
+
     angle_difference = np.arccos(np.dot(r_matrix_wb[:, 2], np.array([0, 0, 1])))
-    depth = cam_height / math.cos(angle_difference)  # trigonometry. Approximated based off height and tilt, not pixel found
-    return depth, t_matrix_wb  # would be depth, but cant trust rotation information
+    ground_depth = cam_height / math.cos(angle_difference)
+    # ground_depth = cam_height / math.cos(Rotation.from_quat(vehicle_quaternion).as_euler('xyz')[1])  # trigonometry. Approximated based off height and tilt, not pixel found
+    return ground_depth, t_matrix_wb  # would be depth, but cant trust rotation information
 
 
 # ---------------- IMAGE PROCESSING ---------------- #
-def get_target_location(image_file_path, camera_calib, d, depth, t_matrix_wb, t_matrix_cb):
-    image_path = os.path.join(image_dir, image_file_path)
+def get_target_location(image_path, camera_calib, camera_distortion, ground_depth, t_matrix_wb, t_matrix_cb):
     image = cv2.imread(image_path)
     if image is None:
         print("No image")
         return None
 
-    undistorted_image = cv2.undistort(image, camera_calib, d)  # Get corrected image
+    undistorted_image = cv2.undistort(image, camera_calib, camera_distortion)  # Get corrected image
     hsv = cv2.cvtColor(undistorted_image, cv2.COLOR_BGR2HSV)
-
     # Define lower and upper bounds for green color in HSV
-    lower_green = np.array([35, 70, 20])
-    upper_green = np.array([80, 255, 255])
-    white_sensitivity = 100
-    lower_white = np.array([0, 0, 255 - white_sensitivity])
-    upper_white = np.array([255, white_sensitivity, 255])
 
     masked_image = cv2.inRange(hsv, lower_green, upper_green)
     white_masked_image = cv2.inRange(hsv, lower_white, upper_white)
 
-    # cv2.imshow('masked', masked_image)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
     # Find contours in the masked_image
     contours, _ = cv2.findContours(masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     white_contours, _ = cv2.findContours(white_masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-
-    min_area = 150
-    max_area = 600  # exclude green tape
-    min_aspect_ratio = 0.6667
-    max_aspect_ratio = 1.5
 
     # Check if any contours are found
     if len(contours) > 0:
@@ -129,7 +121,6 @@ def get_target_location(image_file_path, camera_calib, d, depth, t_matrix_wb, t_
 
         # if len(valid_cnt) > 0:
         for i in range(len(valid_cnt)):
-            this_contour = valid_cnt[i]
             this_rect = valid_rect[i]
             centroid_x = this_rect[0] + this_rect[2] / 2
             centroid_y = this_rect[1] + this_rect[3] / 2
@@ -141,17 +132,15 @@ def get_target_location(image_file_path, camera_calib, d, depth, t_matrix_wb, t_
 
             delta_x = centroid_x - c_x
             delta_y = centroid_y - c_y
-
-            z = depth  # need real depth
-            x = z * delta_x / f_x
-            y = z * delta_y / f_y
-
-            #######################################################################
-            # TODO: Use the T_WB matrix and T_CB(optional) to calculate the true depth of the centroid pixels
-            # depth variable is defined as the depth at the c_x, c_y location
-            # use the rotation and trig to understand new depth
-            t_matrix_wc = t_matrix_cb  # unique matrix that happens to be its own inverse
-            t_matrix_wc = np.dot(t_matrix_wb, t_matrix_cb)
+            t_matrix_bc = t_matrix_cb  # unique matrix that happens to be its own inverse
+            r_matrix_wc = np.dot(t_matrix_wb[:3, :3], t_matrix_bc[:3, :3])
+            # find dots world coordinates
+            world_shifted_xyz_over_camera_z = np.dot(r_matrix_wc[:3, :3], np.array([delta_x/f_x, delta_y/f_y, 1]))
+            world_z_shifted = -ground_depth
+            camera_z = world_z_shifted / world_shifted_xyz_over_camera_z[2]
+            world_x_shifted = world_shifted_xyz_over_camera_z[0] * camera_z
+            world_y_shifted = world_shifted_xyz_over_camera_z[1] * camera_z
+            [x, y, z] = np.dot(np.transpose(r_matrix_wc[:3, :3]), np.array([world_x_shifted, world_y_shifted, world_z_shifted]))
             target_cam_coordinates = np.array([[x], [y], [z], [1]])
             return target_cam_coordinates  # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
 
@@ -235,7 +224,7 @@ def filter_coordinates(cluster_centres, datapoints, tol):
 
 def mini_k_means(k_clusters, datapoints, cluster_centres):
     cluster_ids = assign_cluster(cluster_centres, datapoints)  # 1D array of length = len(datapoints)
-    for _ in range(ITERATIONS):
+    for _ in range(k_means_iterations):
         cluster_centres = re_centre_clusters(cluster_ids, k_clusters, datapoints, cluster_centres)
         cluster_ids = assign_cluster(cluster_centres, datapoints)
     estimated_final_centres = re_centre_clusters(cluster_ids, k_clusters, datapoints, cluster_centres)
@@ -267,7 +256,7 @@ def apply_full_k_means(valid_world_targets):
     ordinary_centres = mini_k_means(k_clusters, valid_world_targets, cluster_centres)
     plot_k_means_results(valid_world_targets, ordinary_centres, 'Ordinary Centres')
 
-    clean_targets = filter_coordinates(ordinary_centres, valid_world_targets, TOLERANCE)
+    clean_targets = filter_coordinates(ordinary_centres, valid_world_targets, k_means_tolerance)
     clean_centres = mini_k_means(k_clusters, clean_targets, ordinary_centres)
     plot_k_means_results(clean_targets, clean_centres, 'Clean Centres')
 
@@ -292,20 +281,25 @@ def main():
         [0.0, 0.0, -1.0, 0.0],
         [0.0, 0.0, 0.0, 1.0]
     ])
-    df = pd.read_csv(file_path)  # Vicon inertial vehicle information,  x ∈ [−2.0, 2.0] m and y ∈ [−2.0, 2.0] m.
+    drone_state = pd.read_csv(file_path)  # Vicon inertial vehicle information,  x ∈ [−2.0, 2.0] m and y ∈ [−2.0, 2.0] m.
     no_valid_images_found = True
     valid_world_targets = []
-    for image_file_path in image_jpgs:
-        i = int(image_file_path[6:-4])
-        depth, t_matrix_wb = calculate_depth_from_camera(df, i)
+    for i in range(len(image_frames)):
+        frame = image_frames[i]
+        image_file_path = image_jpgs[i]
 
-        target_cam_coordinates = get_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, depth, t_matrix_wb, t_matrix_cb)  # return 4x1
+        if frame not in drone_state.index:
+            raise ValueError("Index not found in DataFrame")
+
+        ground_depth, t_matrix_wb = calculate_depth_from_camera(drone_state.loc[frame])
+        target_cam_coordinates = get_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, ground_depth, t_matrix_wb, t_matrix_cb)  # return 4x1
+
         if isinstance(target_cam_coordinates, np.ndarray):  # valid point found
             # print("VALID IMAGE")
             target_vehicle_coordinates = tf_cam2vehicle(target_cam_coordinates, t_matrix_cb)
             target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, t_matrix_wb)
             corrected_target_world_coordinates = within_bounds(target_world_coordinates)
-            print(f"image #: {i} - Valid")
+            print(f"image #: {frame} - Valid")
 
             if no_valid_images_found:
                 valid_world_targets = corrected_target_world_coordinates
@@ -313,7 +307,7 @@ def main():
             else:
                 valid_world_targets = np.vstack((valid_world_targets, corrected_target_world_coordinates))
         else:
-            print(f"image #: {i} - Invalid")
+            print(f"image #: {frame} - Invalid")
 
     valid_world_targets = np.array(valid_world_targets)
     final_clusters_prediction = apply_full_k_means(valid_world_targets)
