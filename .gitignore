@@ -150,6 +150,7 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .idea/
+aer-course-project/image_folder/processed_frames/
 
 aer-course-project/edit_this_original.py
 
