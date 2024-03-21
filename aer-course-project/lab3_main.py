@@ -109,8 +109,8 @@ def realtime_frame_target_location(image_path, camera_calib, camera_distortion, 
         for i in range(len(valid_cnt)):
             this_rect = valid_rect[i]
             this_white_rect = valid_white_rect[i]
-            centroid_x = (this_rect[0] + this_rect[2] / 2 + this_white_rect[0] + this_white_rect[2] / 2) / 2
-            centroid_y = (this_rect[1] + this_rect[3] / 2 + this_white_rect[1] + this_white_rect[3] / 2) / 2
+            centroid_x = this_rect[0] + this_rect[2] / 2
+            centroid_y = this_rect[1] + this_rect[3] / 2
 
             c_x = camera_calib[0][2]
             c_y = camera_calib[1][2]
