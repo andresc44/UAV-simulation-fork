@@ -12,3 +12,6 @@ six locations for the six different markers. These six locations are then printe
 
 We created helper methods to modularize the code. There are 6 methods for k-means clustering steps,
 one method for getting target location form drone state and frame image, and one method to get the state of the frame from the state dataframe object.
+
+At the top of the lab3_main.py file, we have parameters to tune the image-processing, k-means clustering, and target format.
+We also specify the input/output directories there. There is also a parameter that specify whether to save the processed images or not.
