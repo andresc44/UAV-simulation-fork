@@ -3,10 +3,13 @@ import cv2
 import pandas as pd
 import os
 import math
+import time
 
+import matplotlib
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
 
+plt.ion()
 # TODO:
 #  -improve the way depth is determined by including pixel location information
 #  -check for edge cases for image pipeline
@@ -60,26 +63,18 @@ def visualize_transform(t_matrix):
 
 
 # ---------------- DEPTH ---------------- #
-def calculate_depth_from_camera(frame_state):
-
+def get_frame_state(frame_state):
     vehicle_translations = np.array([frame_state.p_x, frame_state.p_y, frame_state.p_z])
     vehicle_quaternion = np.array([frame_state.q_x, frame_state.q_y, frame_state.q_z, frame_state.q_w])
-
     r_matrix_wb = Rotation.from_quat(vehicle_quaternion).as_matrix()  # correct, orthogonal, det(R)==1 SO group
     t_matrix_wb = np.eye(4)  # Identity matrix
     t_matrix_wb[:3, :3] = r_matrix_wb  # Set rotation values
-    t_matrix_wb[:3, 3] = vehicle_translations  # Set translation values
-
-    cam_height = vehicle_translations[2]
-
-    angle_difference = np.arccos(np.dot(r_matrix_wb[:, 2], np.array([0, 0, 1])))
-    ground_depth = cam_height / math.cos(angle_difference)
-    # ground_depth = cam_height / math.cos(Rotation.from_quat(vehicle_quaternion).as_euler('xyz')[1])  # trigonometry. Approximated based off height and tilt, not pixel found
-    return ground_depth, t_matrix_wb  # would be depth, but cant trust rotation information
+    t_matrix_wb[:3, 3] = vehicle_translations
+    return t_matrix_wb  # would be depth, but cant trust rotation information
 
 
 # ---------------- IMAGE PROCESSING ---------------- #
-def get_target_location(image_path, camera_calib, camera_distortion, ground_depth, t_matrix_wb, t_matrix_cb):
+def realtime_frame_target_location(image_path, camera_calib, camera_distortion, t_matrix_wb, t_matrix_cb):
     image = cv2.imread(image_path)
     if image is None:
         print("No image")
@@ -100,6 +95,7 @@ def get_target_location(image_path, camera_calib, camera_distortion, ground_dept
     if len(contours) > 0:
         valid_cnt = []
         valid_rect = []
+        valid_white_rect = []
         for cnt in contours:
             if min_area < cv2.contourArea(cnt) < max_area:
                 rect = np.int16(cv2.boundingRect(cnt))
@@ -112,18 +108,14 @@ def get_target_location(image_path, camera_calib, camera_distortion, ground_dept
                                 (white_rect[1] + white_rect[3]) > (rect[1] + rect[3])):
                             valid_cnt.append(cnt)
                             valid_rect.append(rect)
-                            # output_img = undistorted_image.copy()
-                            # output_img[np.where(masked_image == 0)] = 0
-                            # output_img[np.where(white_masked_image != 0)] = 255
-                            # plt.imshow(output_img)
-                            # plt.show()
+                            valid_white_rect.append(white_rect)
                             break
 
-        # if len(valid_cnt) > 0:
         for i in range(len(valid_cnt)):
             this_rect = valid_rect[i]
-            centroid_x = this_rect[0] + this_rect[2] / 2
-            centroid_y = this_rect[1] + this_rect[3] / 2
+            this_white_rect = valid_white_rect[i]
+            centroid_x = (this_rect[0] + this_rect[2] / 2 + this_white_rect[0] + this_white_rect[2] / 2) / 2
+            centroid_y = (this_rect[1] + this_rect[3] / 2 + this_white_rect[1] + this_white_rect[3] / 2) / 2
 
             c_x = camera_calib[0][2]
             c_y = camera_calib[1][2]
@@ -133,16 +125,15 @@ def get_target_location(image_path, camera_calib, camera_distortion, ground_dept
             delta_x = centroid_x - c_x
             delta_y = centroid_y - c_y
             t_matrix_bc = t_matrix_cb  # unique matrix that happens to be its own inverse
-            r_matrix_wc = np.dot(t_matrix_wb[:3, :3], t_matrix_bc[:3, :3])
             # find dots world coordinates
-            world_shifted_xyz_over_camera_z = np.dot(r_matrix_wc[:3, :3], np.array([delta_x/f_x, delta_y/f_y, 1]))
-            world_z_shifted = -ground_depth
-            camera_z = world_z_shifted / world_shifted_xyz_over_camera_z[2]
-            world_x_shifted = world_shifted_xyz_over_camera_z[0] * camera_z
-            world_y_shifted = world_shifted_xyz_over_camera_z[1] * camera_z
-            [x, y, z] = np.dot(np.transpose(r_matrix_wc[:3, :3]), np.array([world_x_shifted, world_y_shifted, world_z_shifted]))
-            target_cam_coordinates = np.array([[x], [y], [z], [1]])
-            return target_cam_coordinates  # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
+            t_matrix_wc = np.dot(t_matrix_wb, t_matrix_bc)
+            camera_z = (0 - t_matrix_wc[2, 3]) / (t_matrix_wc[2, 0] * delta_x / f_x + t_matrix_wc[2, 1] * delta_y / f_y + t_matrix_wc[2, 2])
+            camera_x = camera_z * delta_x / f_x
+            camera_y = camera_z * delta_y / f_y
+
+            target_cam_coordinates = np.array([[camera_x], [camera_y], [camera_z], [1]])
+            target_world_coordinates = np.dot(t_matrix_wc, target_cam_coordinates)
+            return target_world_coordinates  # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
 
 
 # ---------------- TRANSFORMS ---------------- #
@@ -270,7 +261,7 @@ def apply_full_k_means(valid_world_targets):
 # ---------------- MAIN ---------------- #
 def main():
     camera_intrinsic_mat = np.array([  # Camera Intrinsic Matrix
-        [698.86, 0.0, 306.91],
+        [730.86, 0.0, 306.91],
         [0.0, 699.13, 150.34],
         [0.0, 0.0, 1.0]
     ])
@@ -284,31 +275,32 @@ def main():
     drone_state = pd.read_csv(file_path)  # Vicon inertial vehicle information,  x ∈ [−2.0, 2.0] m and y ∈ [−2.0, 2.0] m.
     no_valid_images_found = True
     valid_world_targets = []
-    for i in range(len(image_frames)):
+
+    # Real-time frame target coordinates
+    for i in range(1, len(image_frames)):
         frame = image_frames[i]
         image_file_path = image_jpgs[i]
 
         if frame not in drone_state.index:
             raise ValueError("Index not found in DataFrame")
 
-        ground_depth, t_matrix_wb = calculate_depth_from_camera(drone_state.loc[frame])
-        target_cam_coordinates = get_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, ground_depth, t_matrix_wb, t_matrix_cb)  # return 4x1
+        t_matrix_wb = get_frame_state(drone_state.loc[frame])
+        target_world_coordinates = realtime_frame_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, t_matrix_wb, t_matrix_cb)  # return 4x1
 
-        if isinstance(target_cam_coordinates, np.ndarray):  # valid point found
-            # print("VALID IMAGE")
-            target_vehicle_coordinates = tf_cam2vehicle(target_cam_coordinates, t_matrix_cb)
-            target_world_coordinates = tf_vehicle2world(target_vehicle_coordinates, t_matrix_wb)
+        if isinstance(target_world_coordinates, np.ndarray):
+            print(f"image #: {frame} - Invalid")
             corrected_target_world_coordinates = within_bounds(target_world_coordinates)
-            print(f"image #: {frame} - Valid")
 
             if no_valid_images_found:
                 valid_world_targets = corrected_target_world_coordinates
                 no_valid_images_found = False
             else:
                 valid_world_targets = np.vstack((valid_world_targets, corrected_target_world_coordinates))
+
         else:
             print(f"image #: {frame} - Invalid")
 
+    # Sanitize using k-means clustering
     valid_world_targets = np.array(valid_world_targets)
     final_clusters_prediction = apply_full_k_means(valid_world_targets)
     print("6 targets estimated at: ")
