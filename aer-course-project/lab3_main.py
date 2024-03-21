@@ -2,19 +2,9 @@ import numpy as np
 import cv2
 import pandas as pd
 import os
-import math
-import time
-
-import matplotlib
 import matplotlib.pyplot as plt
 from scipy.spatial.transform import Rotation
-
-plt.ion()
-# TODO:
-#  -improve the way depth is determined by including pixel location information
-#  -check for edge cases for image pipeline
-#  -after any major changes, check for clustering in Kmeans chart
-
+# Parameters
 k_means_iterations = 50
 k_means_tolerance = 0.3
 min_area = 150
@@ -28,9 +18,13 @@ white_sensitivity = 100
 lower_white = np.array([0, 0, 255 - white_sensitivity])
 upper_white = np.array([255, white_sensitivity, 255])
 current_directory = os.getcwd()
+# Input files locations
 file_name = 'lab3_pose.csv'
+image_dir = 'image_folder/input_frames'
+out_image_dir = 'image_folder/processed_frames'
+save_out_images = False
+# Get Images
 file_path = os.path.join(current_directory, file_name)
-image_dir = 'image_folder/output_folder'
 image_dir = os.path.join(current_directory, image_dir)
 image_frames = sorted([int(i[6:-4]) for i in os.listdir(image_dir)])
 image_jpgs = [f'{image_dir}/image_{j}.jpg' for j in image_frames]
@@ -90,6 +84,7 @@ def realtime_frame_target_location(image_path, camera_calib, camera_distortion, 
     # Find contours in the masked_image
     contours, _ = cv2.findContours(masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     white_contours, _ = cv2.findContours(white_masked_image, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    target_world_coordinates_list = np.array([])
 
     # Check if any contours are found
     if len(contours) > 0:
@@ -133,21 +128,23 @@ def realtime_frame_target_location(image_path, camera_calib, camera_distortion, 
 
             target_cam_coordinates = np.array([[camera_x], [camera_y], [camera_z], [1]])
             target_world_coordinates = np.dot(t_matrix_wc, target_cam_coordinates)
-            return target_world_coordinates  # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
+            target_world_coordinates = np.array(within_bounds(target_world_coordinates))
+
+            if len(target_world_coordinates_list) > 0:
+                target_world_coordinates_list = np.vstack((target_world_coordinates_list, target_world_coordinates))
+            else:
+                target_world_coordinates_list = target_world_coordinates
+            if save_out_images:
+                output_img = undistorted_image.copy()
+                output_img[np.where(masked_image == 0)] = 0
+                output_img[np.where(white_masked_image != 0)] = 255
+                plt.imshow(output_img)
+                plt.savefig(os.path.join(os.path.join(current_directory, out_image_dir), f"image_{int(image_path.split('image_')[-1][:-4])}_target_{target_world_coordinates_list.shape[0]}.jpg"))
+
+    return target_world_coordinates_list  # return target_cam_coordinates #4x1 [[x], [y], [z], 1]
 
 
 # ---------------- TRANSFORMS ---------------- #
-def tf_cam2vehicle(target_cam_coordinates, t_matrix_cb):  # target_cam_coordinates is 4x1
-    t_matrix_bc = np.linalg.inv(t_matrix_cb)  # 4x4, is equal to its inverse
-    target_vehicle_coordinates = np.matmul(t_matrix_bc, target_cam_coordinates)
-    return target_vehicle_coordinates  # 4x1
-
-
-def tf_vehicle2world(target_vehicle_coordinates, t_matrix_wb):
-    points_world = np.dot(t_matrix_wb, target_vehicle_coordinates)
-    return points_world  # 4x1
-
-
 def within_bounds(target_world_coordinates):
     x = target_world_coordinates[0][0]
     y = target_world_coordinates[1][0]
@@ -287,15 +284,14 @@ def main():
         t_matrix_wb = get_frame_state(drone_state.loc[frame - 1])  # there seems to be a lag of 1 frame
         target_world_coordinates = realtime_frame_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, t_matrix_wb, t_matrix_cb)  # return 4x1
 
-        if isinstance(target_world_coordinates, np.ndarray):
-            print(f"image #: {frame} - Invalid")
-            corrected_target_world_coordinates = within_bounds(target_world_coordinates)
+        if len(target_world_coordinates) > 0:
+            print(f"image #: {frame} - Valid")
 
             if no_valid_images_found:
-                valid_world_targets = corrected_target_world_coordinates
+                valid_world_targets = target_world_coordinates
                 no_valid_images_found = False
             else:
-                valid_world_targets = np.vstack((valid_world_targets, corrected_target_world_coordinates))
+                valid_world_targets = np.vstack((valid_world_targets, target_world_coordinates))
 
         else:
             print(f"image #: {frame} - Invalid")
