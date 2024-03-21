@@ -284,7 +284,7 @@ def main():
         if frame not in drone_state.index:
             raise ValueError("Index not found in DataFrame")
 
-        t_matrix_wb = get_frame_state(drone_state.loc[frame])
+        t_matrix_wb = get_frame_state(drone_state.loc[frame - 1])  # there seems to be a lag of 1 frame
         target_world_coordinates = realtime_frame_target_location(image_file_path, camera_intrinsic_mat, camera_distortion, t_matrix_wb, t_matrix_cb)  # return 4x1
 
         if isinstance(target_world_coordinates, np.ndarray):
