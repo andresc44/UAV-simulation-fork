@@ -147,3 +147,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#lab4 CityData dir
+CityData/
