@@ -15,6 +15,8 @@ http://www.cvlibs.net/datasets/kitti/raw_data.php
 #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 #ANDRES RANSAC BRANCH
+# import pkg_resources
+# pkg_resources.require("cv2==8.2.0")
 
 import numpy as np 
 import cv2 as cv
@@ -24,6 +26,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 from stereo_vo_base import StereoCamera, VisualOdometry
+#pip install opencv-contrib-python
 
 def main():
     # current working directory
