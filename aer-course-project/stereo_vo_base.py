@@ -13,7 +13,9 @@ STAGE_FIRST_FRAME = 0
 STAGE_SECOND_FRAME = 1
 STAGE_DEFAULT_FRAME = 2
 
-np.random.rand(1217)
+# np.random.rand(1217) In starter code, probably typo
+np.random.seed(1217)
+
 
 class StereoCamera:
     def __init__(self, baseline, focalLength, fx, fy, cu, cv):
@@ -113,23 +115,101 @@ class VisualOdometry:
         #   prev_l_x, prev_l_y, prev_r_x, prev_r_y, cur_l_x, cur_l_y, cur_r_x, cur_r_y
         return features_coor
     
+    ## RANSAC ##################################################
+    # TODO: - get max iter formula
+    #       - add inverse stereo model
+    #       - compute T from 3 points
+    #       - Apply T and check inliers
+
+    # Order of increasing complexity
+    
+    def convert_features_to_3D(features_coor):
+
+        f_prev = features_coor[:, :4] #N x 4
+        f_cur = features_coor[:, 4:8] #N x 4
+
+        def inverse_stereo(l_and_r_feats):
+            ...
+            #TODO: calculate 3d coordinates based on left and right features using inverse stereo model
+            points_3D = [1, 1, 1]
+            return points_3D # N x 3 (x, y, z)
+        
+        p_before = inverse_stereo(f_prev)
+        p_cur = inverse_stereo(f_cur)
+        return p_before, p_cur #each N x 3
+    
+    def compute_max_iter_RANSAC(certainty):
+        # Add max iter based on certainty with log fxn
+        # TODO: apply the formula to get max iterations
+        max_iter = 1000
+        return max_iter
+    
+    def filter_inliers_RASAC(self, p_before, p_cur, max_iter):
+
+        max_inliners = -1
+        top_T = np.zeros((4,4))
+        INLIER_THRESHOLD_EUCLIDEAN = 10 # metres
+
+        def inliers_from_T(T, p_before, p_cur):
+            #Apply C and r to p_before and see which points in p_cur are within tolerance
+            # TODO: Apply transformation and check inlier points
+            return inliers_cnt, inlier_indices
+            
+        def one_iter_RANSAC(p_before, p_cur):
+            rand_idx = np.random.sample(range(len(p_before)), 3) #3 random samples
+            prev_test_points = p_before[rand_idx]
+            cur_test_points = p_cur[rand_idx]
+            #TODO: Compute T from 3 test points
+            T = np.zeros((4, 4))
+            inliers_cnt, _ = inliers_from_T(T, p_before, p_cur)
+            return T, inliers_cnt
+
+        for _ in range(max_iter):
+            temp_T, inliers_cnt = one_iter_RANSAC(p_before, p_cur)
+            if inliers_cnt > max_inliners:
+                max_inliners = inliers_cnt
+                top_T = temp_T
+
+        _, inlier_indices = inliers_from_T(top_T, p_before, p_cur)
+
+        p_a = p_before[inlier_indices]
+        p_b = p_cur[inlier_indices]
+
+        return p_a, p_b, inlier_indices
+    
+
+
+    ## POSE ESTIMATION ################################################
+    
     def pose_estimation(self, features_coor):
+        # # dummy C and r
+        # C = np.eye(3)
+        # r = np.array([0,0,0])
+        # # feature in right img (without filtering)
+        # f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
+        # ------------- start your code here -------------- #
+
+        #1. Convert to 3d pointcloud points. 2 sets before: [x, y, z], and current: [x, y, z]
+        #2. Iteratively run RANSAC to get inliers by fitting C and r to 3 points
+        #3. Choose version that had the most inliers
+        #3. Use N' features for cloud alignment
+        p_before, p_cur = self.convert_features_to_3D(features_coor)
+        certainty = 0.99
+        max_iter = self.compute_max_iter_RANSAC(certainty)
+        p_a, p_b, inlier_indices = self.filter_inliers_RASAC(p_before, p_cur, max_iter)
+        
+        
+        
+        #TODO: Compute C and r from p_a and p_b which are inlier points
         # dummy C and r
         C = np.eye(3)
         r = np.array([0,0,0])
-        # feature in right img (without filtering)
-        f_r_prev, f_r_cur = features_coor[:,2:4], features_coor[:,6:8]
-        # ------------- start your code here -------------- #
-        
-        
-        
-        
-        
-        
-        
-        # replace (1) the dummy C and r to the estimated C and r. 
-        #         (2) the original features to the filtered features
-        return C, r, f_r_prev, f_r_cur
+
+
+
+        filtered_features_coor = features_coor[inlier_indices]
+        f_r_prev, f_r_cur = filtered_features_coor[:,2:4], filtered_features_coor[:,6:8]
+        return C, r, f_r_prev, f_r_cur #for 3rd and 4th argument, return filtered features of size N'
     
     def processFirstFrame(self, img_left, img_right):
         kp_l, des_l, feature_l_img = self.feature_detection(img_left)
@@ -150,7 +230,7 @@ class VisualOdometry:
         # compute feature correspondance
         features_coor = self.find_feature_correspondences(self.kp_l_prev, self.des_l_prev,
                                                      self.kp_r_prev, self.des_r_prev,
-                                                     kp_l, des_l, kp_r, des_r)
+                                                     kp_l, des_l, kp_r, des_r) #Nx8
         # draw the feature tracking on the left img
         img_l_tracking = self.featureTracking(features_coor[:,0:2], features_coor[:,4:6],img_left, color = self.feature_color)
         
@@ -177,13 +257,16 @@ class VisualOdometry:
         # compute feature correspondance
         features_coor = self.find_feature_correspondences(self.kp_l_prev, self.des_l_prev,
                                                      self.kp_r_prev, self.des_r_prev,
-                                                     kp_l, des_l, kp_r, des_r)
+                                                     kp_l, des_l, kp_r, des_r) #N x 8
         # draw the feature tracking on the left img
+            #input is prev_l_x, prev_l_y    cur_l_x, cur_l_y,
         img_l_tracking = self.featureTracking(features_coor[:,0:2], features_coor[:,4:6], img_left,  color = self.feature_color)
         
         # lab4 assignment: compute the vehicle pose  
+        # returns prev_r_x, prev_r_y    cur_r_x, cur_r_y
         [self.C, self.r, f_r_prev, f_r_cur] = self.pose_estimation(features_coor)
         
+        # input is prev_r_x, prev_r_y    cur_r_x, cur_r_y
         # draw the feature (inliers) tracking on the right img
         img_r_tracking = self.featureTracking(f_r_prev, f_r_cur, img_right,  color = self.inlier_color, alpha=1.0)
         
