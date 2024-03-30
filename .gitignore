@@ -147,6 +147,11 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.idea/
+aer-course-project/lab3/image_folder/processed_frames/
+aer-course-project/lab3/image_folder/
+aer-course-project/edit_this_original.py
+aer-course-project/PlanningAlgorithm/
 
 #lab4 CityData dir
 CityData/

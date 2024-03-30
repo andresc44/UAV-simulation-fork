@@ -1,51 +1,60 @@
-'''Register controllers.'''
+"""Register controllers.
 
+"""
 from safe_control_gym.utils.registration import register
 
-register(idx='lqr',
-         entry_point='safe_control_gym.controllers.lqr.lqr:LQR',
-         config_entry_point='safe_control_gym.controllers.lqr:lqr.yaml')
+register(id="lqr",
+         entry_point="safe_control_gym.controllers.lqr.lqr:LQR",
+         config_entry_point="safe_control_gym.controllers.lqr:lqr.yaml")
 
-register(idx='ilqr',
-         entry_point='safe_control_gym.controllers.lqr.ilqr:iLQR',
-         config_entry_point='safe_control_gym.controllers.lqr:ilqr.yaml')
+register(id="ilqr",
+         entry_point="safe_control_gym.controllers.lqr.ilqr:iLQR",
+         config_entry_point="safe_control_gym.controllers.lqr:ilqr.yaml")
 
-register(idx='mpc',
-         entry_point='safe_control_gym.controllers.mpc.mpc:MPC',
-         config_entry_point='safe_control_gym.controllers.mpc:mpc.yaml')
+register(id="cbf",
+         entry_point="safe_control_gym.controllers.cbf.cbf_qp:CBF_QP",
+         config_entry_point="safe_control_gym.controllers.cbf:cbf_qp.yaml")
 
-register(idx='linear_mpc',
-         entry_point='safe_control_gym.controllers.mpc.linear_mpc:LinearMPC',
-         config_entry_point='safe_control_gym.controllers.mpc:linear_mpc.yaml')
+register(id="mpc",
+         entry_point="safe_control_gym.controllers.mpc.mpc:MPC",
+         config_entry_point="safe_control_gym.controllers.mpc:mpc.yaml")
 
-register(idx='gp_mpc',
-         entry_point='safe_control_gym.controllers.mpc.gp_mpc:GPMPC',
-         config_entry_point='safe_control_gym.controllers.mpc:gp_mpc.yaml')
+register(id="linear_mpc",
+         entry_point="safe_control_gym.controllers.mpc.linear_mpc:LinearMPC",
+         config_entry_point="safe_control_gym.controllers.mpc:linear_mpc.yaml")
 
-register(idx='pid',
-         entry_point='safe_control_gym.controllers.pid.pid:PID',
-         config_entry_point='safe_control_gym.controllers.pid:pid.yaml')
+register(id="gp_mpc",
+         entry_point="safe_control_gym.controllers.mpc.gp_mpc:GPMPC",
+         config_entry_point="safe_control_gym.controllers.mpc:gp_mpc.yaml")
 
-register(idx='ppo',
-         entry_point='safe_control_gym.controllers.ppo.ppo:PPO',
-         config_entry_point='safe_control_gym.controllers.ppo:ppo.yaml')
+register(id="pid",
+         entry_point="safe_control_gym.controllers.pid.pid:PID",
+         config_entry_point="safe_control_gym.controllers.pid:pid.yaml")
 
-register(idx='sac',
-         entry_point='safe_control_gym.controllers.sac.sac:SAC',
-         config_entry_point='safe_control_gym.controllers.sac:sac.yaml')
+register(id="ppo",
+         entry_point="safe_control_gym.controllers.ppo.ppo:PPO",
+         config_entry_point="safe_control_gym.controllers.ppo:ppo.yaml")
 
-register(idx='ddpg',
-         entry_point='safe_control_gym.controllers.ddpg.ddpg:DDPG',
-         config_entry_point='safe_control_gym.controllers.ddpg:ddpg.yaml')
+register(id="sac",
+         entry_point="safe_control_gym.controllers.sac.sac:SAC",
+         config_entry_point="safe_control_gym.controllers.sac:sac.yaml")
 
-register(idx='safe_explorer_ppo',
-         entry_point='safe_control_gym.controllers.safe_explorer.safe_ppo:SafeExplorerPPO',
-         config_entry_point='safe_control_gym.controllers.safe_explorer:safe_ppo.yaml')
+register(id="ddpg",
+         entry_point="safe_control_gym.controllers.ddpg.ddpg:DDPG",
+         config_entry_point="safe_control_gym.controllers.ddpg:ddpg.yaml")
 
-register(idx='rarl',
-         entry_point='safe_control_gym.controllers.rarl.rarl:RARL',
-         config_entry_point='safe_control_gym.controllers.rarl:rarl.yaml')
+register(id="safe_explorer_ppo",
+         entry_point="safe_control_gym.controllers.safe_explorer.safe_ppo:SafeExplorerPPO",
+         config_entry_point="safe_control_gym.controllers.safe_explorer:safe_ppo.yaml")
 
-register(idx='rap',
-         entry_point='safe_control_gym.controllers.rarl.rap:RAP',
-         config_entry_point='safe_control_gym.controllers.rarl:rap.yaml')
+register(id="rarl",
+         entry_point="safe_control_gym.controllers.rarl.rarl:RARL",
+         config_entry_point="safe_control_gym.controllers.rarl:rarl.yaml")
+
+register(id="rap",
+         entry_point="safe_control_gym.controllers.rarl.rap:RAP",
+         config_entry_point="safe_control_gym.controllers.rarl:rap.yaml")
+         
+register(id="firmware",
+         entry_point="safe_control_gym.controllers.firmware.firmware_wrapper:FirmwareWrapper",
+         config_entry_point="safe_control_gym.controllers.firmware:firmware.yaml")
