@@ -63,11 +63,11 @@ scipy = "*"
 
 [[package]]
 name = "click"
-version = "8.0.4"
+version = "8.1.7"
 description = "Composable command line interface toolkit"
 category = "main"
 optional = false
-python-versions = ">=3.6"
+python-versions = ">=3.7"
 
 [package.dependencies]
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
@@ -488,14 +488,11 @@ python-dateutil = ">=2.7"
 
 [[package]]
 name = "mosek"
-version = "9.3.22"
-description = "Python interface for MOSEK - the package for large scale convex, conic and mixed-integer optimization."
+version = "10.0.47"
+description = "Python API for Mosek"
 category = "main"
 optional = false
 python-versions = "*"
-
-[package.dependencies]
-numpy = "*"
 
 [[package]]
 name = "msgpack"
@@ -680,11 +677,11 @@ virtualenv = ">=20.10.0"
 
 [[package]]
 name = "protobuf"
-version = "3.20.3"
-description = "Protocol Buffers"
+version = "5.26.1"
+description = ""
 category = "main"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 
 [[package]]
 name = "pyaml"
@@ -718,6 +715,14 @@ description = "Official Python Interface for the Bullet Physics SDK specialized 
 category = "main"
 optional = false
 python-versions = "*"
+
+[[package]]
+name = "pycddlib"
+version = "2.1.7"
+description = "pycddlib is a Python wrapper for Komei Fukuda's cddlib."
+category = "main"
+optional = false
+python-versions = ">=3.7"
 
 [[package]]
 name = "pygments"
@@ -771,6 +776,20 @@ python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 
 [package.dependencies]
 six = ">=1.5"
+
+[[package]]
+name = "pytope"
+version = "0.0.4"
+description = "Polytope operations --- limited functionality"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+matplotlib = "*"
+numpy = "*"
+pycddlib = "*"
+scipy = ">=1.3.0"
 
 [[package]]
 name = "pytz"
@@ -1077,7 +1096,7 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "42235a93c18acd371dd5a2a17b5bf432e4d434923e328f5db4b494357f1e6ff0"
+content-hash = "579816fe4d54eed92558fb4a2880dd84e8e62ee03b237737d3e38e9cb26e0106"
 
 [metadata.files]
 absl-py = []
@@ -1137,10 +1156,12 @@ protobuf = []
 pyaml = []
 pybind11 = []
 pybullet = []
+pycddlib = []
 pygments = []
 pyparsing = []
 pytest = []
 python-dateutil = []
+pytope = []
 pytz = []
 pyyaml = []
 qdldl = []
