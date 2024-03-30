@@ -151,6 +151,7 @@ dmypy.json
 .pyre/
 .idea/
 aer-course-project/lab3/image_folder/processed_frames/
+aer-course-project/lab3/image_folder/input_frames/
 
 aer-course-project/edit_this_original.py
 
