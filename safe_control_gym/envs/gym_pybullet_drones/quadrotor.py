@@ -1159,6 +1159,9 @@ class Quadrotor(BaseAviary):
         # IROS 2022 - Reset info.
         info["ctrl_timestep"] = self.CTRL_TIMESTEP
         info["ctrl_freq"] = self.CTRL_FREQ
+        info["position_tolerance"] = self.POSITION_TOLERANCE
+        info["k_p"] = self.K_P
+        info["k_d"] = self.K_D
         info["episode_len_sec"] = self.EPISODE_LEN_SEC
         info["quadrotor_kf"] = self.KF
         info["quadrotor_km"] = self.KM
