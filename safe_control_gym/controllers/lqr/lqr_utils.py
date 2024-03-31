@@ -1,11 +1,11 @@
-'''Linear Quadratic Regulator (LQR) utilities.'''
+"""Linear Quadratic Regulator (LQR) utilities."""
 
 import numpy as np
 import scipy.linalg
 
 
 def compute_lqr_gain(model, x_0, u_0, Q, R, discrete_dynamics=True):
-    '''Computes the LQR gain from the model, linearization points, and Q and R matrices.
+    """Computes the LQR gain from the model, linearization points, and Q and R matrices.
 
     Args:
         model (SymbolicModel): The SymbolicModel of the system.
@@ -17,7 +17,7 @@ def compute_lqr_gain(model, x_0, u_0, Q, R, discrete_dynamics=True):
 
     Returns:
         gain (ndarray): The LQR gain for the system.
-    '''
+    """
 
     # Linearization.
     df = model.df_func(x_0, u_0)
@@ -29,8 +29,7 @@ def compute_lqr_gain(model, x_0, u_0, Q, R, discrete_dynamics=True):
         A, B = discretize_linear_system(A, B, model.dt)
         P = scipy.linalg.solve_discrete_are(A, B, Q, R)
         btp = np.dot(B.T, P)
-        gain = np.dot(np.linalg.inv(R + np.dot(btp, B)),
-                      np.dot(btp, A))
+        gain = np.dot(np.linalg.inv(R + np.dot(btp, B)), np.dot(btp, A))
     else:
         # dx/dt = A x + B u
         P = scipy.linalg.solve_continuous_are(A, B, Q, R)
@@ -40,7 +39,7 @@ def compute_lqr_gain(model, x_0, u_0, Q, R, discrete_dynamics=True):
 
 
 def discretize_linear_system(A, B, dt, exact=False):
-    '''Discretization of a linear system
+    """Discretization of a linear system
 
     dx/dt = A x + B u
     --> xd[k+1] = Ad xd[k] + Bd ud[k] where xd[k] = x(k*dt)
@@ -54,7 +53,7 @@ def discretize_linear_system(A, B, dt, exact=False):
     Returns:
         Ad (ndarray): The discrete linear state matrix A.
         Bd (ndarray): The discrete linear input matrix B.
-    '''
+    """
 
     state_dim, input_dim = A.shape[1], B.shape[1]
 
@@ -75,7 +74,7 @@ def discretize_linear_system(A, B, dt, exact=False):
 
 
 def get_cost_weight_matrix(weights, dim):
-    '''Gets weight matrix from input args.
+    """Gets weight matrix from input args.
 
     Args:
         weights (list): A 1D list of weights.
@@ -83,12 +82,12 @@ def get_cost_weight_matrix(weights, dim):
 
     Returns:
         W (ndarray): The cost weight matrix.
-    '''
+    """
 
     if len(weights) == dim:
         W = np.diag(weights)
     elif len(weights) == 1:
         W = np.diag(weights * dim)
     else:
-        raise Exception('Wrong dimension for cost weights.')
+        raise Exception("Wrong dimension for cost weights.")
     return W

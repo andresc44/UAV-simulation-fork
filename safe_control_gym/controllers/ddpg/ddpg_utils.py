@@ -14,17 +14,19 @@ from safe_control_gym.math_and_models.neural_networks import MLP
 
 
 class DDPGAgent:
-    '''A DDPG class that encapsulates model, optimizer and update functions.'''
+    """A DDPG class that encapsulates model, optimizer and update functions."""
 
-    def __init__(self,
-                 obs_space,
-                 act_space,
-                 hidden_dim=256,
-                 gamma=0.99,
-                 tau=0.005,
-                 actor_lr=0.001,
-                 critic_lr=0.001,
-                 **kwargs):
+    def __init__(
+        self,
+        obs_space,
+        act_space,
+        hidden_dim=256,
+        gamma=0.99,
+        tau=0.005,
+        actor_lr=0.001,
+        critic_lr=0.001,
+        **kwargs
+    ):
         # params
         self.obs_space = obs_space
         self.act_space = act_space
@@ -33,7 +35,9 @@ class DDPGAgent:
         self.tau = tau
 
         # model
-        self.ac = MLPActorCritic(obs_space, act_space, hidden_dims=[hidden_dim] * 2, activation='relu')
+        self.ac = MLPActorCritic(
+            obs_space, act_space, hidden_dims=[hidden_dim] * 2, activation="relu"
+        )
 
         # target networks
         self.ac_targ = deepcopy(self.ac)
@@ -45,45 +49,51 @@ class DDPGAgent:
         self.critic_opt = torch.optim.Adam(self.ac.q.parameters(), critic_lr)
 
     def to(self, device):
-        '''Puts agent to device.'''
+        """Puts agent to device."""
         self.ac.to(device)
         self.ac_targ.to(device)
 
     def train(self):
-        '''Sets training mode.'''
+        """Sets training mode."""
         self.ac.train()
 
     def eval(self):
-        '''Sets evaluation mode.'''
+        """Sets evaluation mode."""
         self.ac.eval()
 
     def state_dict(self):
-        '''Snapshots agent state.'''
+        """Snapshots agent state."""
         return {
-            'ac': self.ac.state_dict(),
-            'ac_targ': self.ac_targ.state_dict(),
-            'actor_opt': self.actor_opt.state_dict(),
-            'critic_opt': self.critic_opt.state_dict(),
+            "ac": self.ac.state_dict(),
+            "ac_targ": self.ac_targ.state_dict(),
+            "actor_opt": self.actor_opt.state_dict(),
+            "critic_opt": self.critic_opt.state_dict(),
         }
 
     def load_state_dict(self, state_dict):
-        '''Restores agent state.'''
-        self.ac.load_state_dict(state_dict['ac'])
-        self.ac_targ.load_state_dict(state_dict['ac_targ'])
-        self.actor_opt.load_state_dict(state_dict['actor_opt'])
-        self.critic_opt.load_state_dict(state_dict['critic_opt'])
+        """Restores agent state."""
+        self.ac.load_state_dict(state_dict["ac"])
+        self.ac_targ.load_state_dict(state_dict["ac_targ"])
+        self.actor_opt.load_state_dict(state_dict["actor_opt"])
+        self.critic_opt.load_state_dict(state_dict["critic_opt"])
 
     def compute_policy_loss(self, batch):
-        '''Returns policy loss(es) given batch of data.'''
-        obs = batch['obs']
+        """Returns policy loss(es) given batch of data."""
+        obs = batch["obs"]
         act = self.ac.actor(obs)
         q = self.ac.q(obs, act)
         policy_loss = -q.mean()
         return policy_loss
 
     def compute_q_loss(self, batch):
-        '''Returns q-value loss(es) given batch of data.'''
-        obs, act, rew, next_obs, mask = batch['obs'], batch['act'], batch['rew'], batch['next_obs'], batch['mask']
+        """Returns q-value loss(es) given batch of data."""
+        obs, act, rew, next_obs, mask = (
+            batch["obs"],
+            batch["act"],
+            batch["rew"],
+            batch["next_obs"],
+            batch["mask"],
+        )
         q = self.ac.q(obs, act)
 
         with torch.no_grad():
@@ -96,7 +106,7 @@ class DDPGAgent:
         return critic_loss
 
     def update(self, batch):
-        '''Updates model parameters based on current training batch.'''
+        """Updates model parameters based on current training batch."""
         results = defaultdict(list)
 
         # actor update
@@ -114,8 +124,8 @@ class DDPGAgent:
         # update target networks
         soft_update(self.ac, self.ac_targ, self.tau)
 
-        results['policy_loss'] = policy_loss.item()
-        results['critic_loss'] = critic_loss.item()
+        results["policy_loss"] = policy_loss.item()
+        results["critic_loss"] = critic_loss.item()
         return results
 
 
@@ -123,9 +133,12 @@ class DDPGAgent:
 #                   Models
 # -----------------------------------------------------------------------------------
 
+
 class MLPActor(nn.Module):
 
-    def __init__(self, obs_dim, act_dim, hidden_dims, activation, postprocess_fn=lambda x: x):
+    def __init__(
+        self, obs_dim, act_dim, hidden_dims, activation, postprocess_fn=lambda x: x
+    ):
         super().__init__()
         self.net = MLP(obs_dim, act_dim, hidden_dims, activation)
         # in case need to pre-apply scaling or clipping on actions
@@ -149,9 +162,9 @@ class MLPQFunction(nn.Module):
 
 
 class MLPActorCritic(nn.Module):
-    '''Model for the actor-critic agent.'''
+    """Model for the actor-critic agent."""
 
-    def __init__(self, obs_space, act_space, hidden_dims=(64, 64), activation='relu'):
+    def __init__(self, obs_space, act_space, hidden_dims=(64, 64), activation="relu"):
         super().__init__()
         obs_dim = obs_space.shape[0]
         act_dim = act_space.shape[0]
@@ -162,9 +175,13 @@ class MLPActorCritic(nn.Module):
         high = torch.FloatTensor(high)
 
         def unscale_fn(x):  # Rescale action from [-1, 1] to [low, high]
-            return low.to(x.device) + (0.5 * (x + 1.0) * (high.to(x.device) - low.to(x.device)))
+            return low.to(x.device) + (
+                0.5 * (x + 1.0) * (high.to(x.device) - low.to(x.device))
+            )
 
-        self.actor = MLPActor(obs_dim, act_dim, hidden_dims, activation, postprocess_fn=unscale_fn)
+        self.actor = MLPActor(
+            obs_dim, act_dim, hidden_dims, activation, postprocess_fn=unscale_fn
+        )
 
         # Q functions
         self.q = MLPQFunction(obs_dim, act_dim, hidden_dims, activation)
@@ -178,15 +195,16 @@ class MLPActorCritic(nn.Module):
 #                   Storage
 # -----------------------------------------------------------------------------------
 
+
 class DDPGBuffer(SACBuffer):
-    '''Storage for replay buffer during training.
+    """Storage for replay buffer during training.
 
     Attributes:
         max_size (int): maximum size of the replay buffer.
         batch_size (int): number of samples (steps) per batch.
         scheme (dict): describs shape & other info of data to be stored.
         keys (list): names of all data from scheme.
-    '''
+    """
 
     def __init__(self, obs_space, act_space, max_size, batch_size=None):
         self.max_size = max_size
@@ -197,22 +215,11 @@ class DDPGBuffer(SACBuffer):
 
         N = max_size
         self.scheme = {
-            'obs': {
-                'vshape': (N, *obs_dim)
-            },
-            'next_obs': {
-                'vshape': (N, *obs_dim)
-            },
-            'act': {
-                'vshape': (N, act_dim)
-            },
-            'rew': {
-                'vshape': (N, 1)
-            },
-            'mask': {
-                'vshape': (N, 1),
-                'init': np.ones
-            }
+            "obs": {"vshape": (N, *obs_dim)},
+            "next_obs": {"vshape": (N, *obs_dim)},
+            "act": {"vshape": (N, act_dim)},
+            "rew": {"vshape": (N, 1)},
+            "mask": {"vshape": (N, 1), "init": np.ones},
         }
         self.keys = list(self.scheme.keys())
         self.reset()
@@ -222,13 +229,14 @@ class DDPGBuffer(SACBuffer):
 #                   Misc
 # -----------------------------------------------------------------------------------
 
-def make_action_noise_process(noise_config, act_space):
-    '''Construct a process for generating action noise during agent training.'''
-    process_func = noise_config.pop('func')
-    std_config = noise_config.pop('std')
 
-    std_func = std_config.pop('func')
-    std_args = std_config.pop('args')
+def make_action_noise_process(noise_config, act_space):
+    """Construct a process for generating action noise during agent training."""
+    process_func = noise_config.pop("func")
+    std_config = noise_config.pop("std")
+
+    std_func = std_config.pop("func")
+    std_args = std_config.pop("args")
     std = eval(std_func)(*std_args, **std_config)
 
     process = eval(process_func)(size=(act_space.shape[0],), std=std)

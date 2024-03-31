@@ -38,7 +38,7 @@ class LinearSchedule:
         return val
 
     def state_dict(self):
-        return {'current': self.current}
+        return {"current": self.current}
 
     def load_state_dict(self, state):
-        self.current = state['current']
+        self.current = state["current"]

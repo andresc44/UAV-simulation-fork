@@ -1,22 +1,22 @@
 """Configuration utilities.
 
 """
+
 import argparse
-from dict_deep import deep_set
 import os
-import munch
 import warnings
 
+import munch
+from dict_deep import deep_set
+
 from safe_control_gym.utils.registration import get_config
-from safe_control_gym.utils.utils import read_file, merge_dict
+from safe_control_gym.utils.utils import merge_dict, read_file
 
 
 class ConfigFactory:
-    """Manager class that's in charge of experiment configs.
+    """Manager class that's in charge of experiment configs."""
 
-    """
-
-    def __init__(self, run_file='main.py'):
+    def __init__(self, run_file="main.py"):
         self.parser = argparse.ArgumentParser(description="Benchmark", prog=run_file)
         self.add_arguments()
         self.base_dict = dict(
@@ -28,37 +28,33 @@ class ConfigFactory:
         )
 
     def add_argument(self, *args, **kwargs):
-        """Extends to new arguments.
-
-        """
+        """Extends to new arguments."""
         self.parser.add_argument(*args, **kwargs)
 
     def add_arguments(self):
-        """Registers base arguments (for experiment bookkeeping).
-
-        """
-        self.add_argument("--tag", type=str, help='id of the experiment')
-        self.add_argument("--seed", type=int, help="random seed, default is no seed/None")
+        """Registers base arguments (for experiment bookkeeping)."""
+        self.add_argument("--tag", type=str, help="id of the experiment")
+        self.add_argument(
+            "--seed", type=int, help="random seed, default is no seed/None"
+        )
         # self.add_argument("--device", type=str, help="cpu or cuda(gpu)")
-        self.add_argument("--use_gpu", action='store_true', help="added to use gpu (if available)")
+        self.add_argument(
+            "--use_gpu", action="store_true", help="added to use gpu (if available)"
+        )
         self.add_argument("--output_dir", type=str, help="output saving folder")
-        self.add_argument("--restore", type=str, help='folder to reload from')
+        self.add_argument("--restore", type=str, help="folder to reload from")
         # Need to explicitly provide from command line (if training for the 1st time).
-        self.add_argument("--algo", type=str, help='algorithm/controller')
-        self.add_argument("--task", type=str, help='task/environment')
-        self.add_argument("--overrides",
-                          nargs='+',
-                          type=str,
-                          help="override config files")
-        self.add_argument("--kv_overrides",
-                          nargs='+',
-                          type=str,
-                          help="override key-value pairs")
+        self.add_argument("--algo", type=str, help="algorithm/controller")
+        self.add_argument("--task", type=str, help="task/environment")
+        self.add_argument(
+            "--overrides", nargs="+", type=str, help="override config files"
+        )
+        self.add_argument(
+            "--kv_overrides", nargs="+", type=str, help="override key-value pairs"
+        )
 
-    def merge(self, args=['--overrides', './lab2.yaml'], config_override=None):
-        """Creates experiment config object from command line and config files.
-
-        """
+    def merge(self, args=["--overrides", "./lab2.yaml"], config_override=None):
+        """Creates experiment config object from command line and config files."""
         config_dict = self.base_dict
         args, _ = self.parser.parse_known_args(args=args)
         if config_override is not None:

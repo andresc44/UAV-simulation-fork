@@ -1,4 +1,4 @@
-'''PPO utilities.'''
+"""PPO utilities."""
 
 from collections import defaultdict
 from copy import deepcopy
@@ -13,23 +13,24 @@ from safe_control_gym.math_and_models.neural_networks import MLP
 
 
 class PPOAgent:
-    '''A PPO class that encapsulates models, optimizers and update functions.'''
+    """A PPO class that encapsulates models, optimizers and update functions."""
 
-    def __init__(self,
-                 obs_space,
-                 act_space,
-                 hidden_dim=64,
-                 use_clipped_value=False,
-                 clip_param=0.2,
-                 target_kl=0.01,
-                 entropy_coef=0.01,
-                 actor_lr=0.0003,
-                 critic_lr=0.001,
-                 opt_epochs=10,
-                 mini_batch_size=64,
-                 activation='tanh',
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        obs_space,
+        act_space,
+        hidden_dim=64,
+        use_clipped_value=False,
+        clip_param=0.2,
+        target_kl=0.01,
+        entropy_coef=0.01,
+        actor_lr=0.0003,
+        critic_lr=0.001,
+        opt_epochs=10,
+        mini_batch_size=64,
+        activation="tanh",
+        **kwargs,
+    ):
         # Parameters.
         self.obs_space = obs_space
         self.act_space = act_space
@@ -41,49 +42,50 @@ class PPOAgent:
         self.mini_batch_size = mini_batch_size
         self.activation = activation
         # Model.
-        self.ac = MLPActorCritic(obs_space,
-                                 act_space,
-                                 hidden_dims=[hidden_dim] * 2,
-                                 activation=self.activation)
+        self.ac = MLPActorCritic(
+            obs_space,
+            act_space,
+            hidden_dims=[hidden_dim] * 2,
+            activation=self.activation,
+        )
         # Optimizers.
         self.actor_opt = torch.optim.Adam(self.ac.actor.parameters(), actor_lr)
         self.critic_opt = torch.optim.Adam(self.ac.critic.parameters(), critic_lr)
 
-    def to(self,
-           device
-           ):
-        '''Puts agent to device.'''
+    def to(self, device):
+        """Puts agent to device."""
         self.ac.to(device)
 
     def train(self):
-        '''Sets training mode.'''
+        """Sets training mode."""
         self.ac.train()
 
     def eval(self):
-        '''Sets evaluation mode.'''
+        """Sets evaluation mode."""
         self.ac.eval()
 
     def state_dict(self):
-        '''Snapshots agent state.'''
+        """Snapshots agent state."""
         return {
-            'ac': self.ac.state_dict(),
-            'actor_opt': self.actor_opt.state_dict(),
-            'critic_opt': self.critic_opt.state_dict()
+            "ac": self.ac.state_dict(),
+            "actor_opt": self.actor_opt.state_dict(),
+            "critic_opt": self.critic_opt.state_dict(),
         }
 
-    def load_state_dict(self,
-                        state_dict
-                        ):
-        '''Restores agent state.'''
-        self.ac.load_state_dict(state_dict['ac'])
-        self.actor_opt.load_state_dict(state_dict['actor_opt'])
-        self.critic_opt.load_state_dict(state_dict['critic_opt'])
+    def load_state_dict(self, state_dict):
+        """Restores agent state."""
+        self.ac.load_state_dict(state_dict["ac"])
+        self.actor_opt.load_state_dict(state_dict["actor_opt"])
+        self.critic_opt.load_state_dict(state_dict["critic_opt"])
 
-    def compute_policy_loss(self,
-                            batch
-                            ):
-        '''Returns policy loss(es) given batch of data.'''
-        obs, act, logp_old, adv = batch['obs'], batch['act'], batch['logp'], batch['adv']
+    def compute_policy_loss(self, batch):
+        """Returns policy loss(es) given batch of data."""
+        obs, act, logp_old, adv = (
+            batch["obs"],
+            batch["act"],
+            batch["logp"],
+            batch["adv"],
+        )
         dist, logp = self.ac.actor(obs, act)
         # Policy.
         ratio = torch.exp(logp - logp_old)
@@ -95,14 +97,14 @@ class PPOAgent:
         approx_kl = (logp_old - logp).mean()
         return policy_loss, entropy_loss, approx_kl
 
-    def compute_value_loss(self,
-                           batch
-                           ):
-        '''Returns value loss(es) given batch of data.'''
-        obs, ret, v_old = batch['obs'], batch['ret'], batch['v']
+    def compute_value_loss(self, batch):
+        """Returns value loss(es) given batch of data."""
+        obs, ret, v_old = batch["obs"], batch["ret"], batch["v"]
         v_cur = self.ac.critic(obs)
         if self.use_clipped_value:
-            v_old_clipped = v_old + (v_cur - v_old).clamp(-self.clip_param, self.clip_param)
+            v_old_clipped = v_old + (v_cur - v_old).clamp(
+                -self.clip_param, self.clip_param
+            )
             v_loss = (v_cur - ret).pow(2)
             v_loss_clipped = (v_old_clipped - ret).pow(2)
             value_loss = 0.5 * torch.max(v_loss, v_loss_clipped).mean()
@@ -110,20 +112,21 @@ class PPOAgent:
             value_loss = 0.5 * (v_cur - ret).pow(2).mean()
         return value_loss
 
-    def update(self,
-               rollouts,
-               device='cpu'
-               ):
-        '''Updates model parameters based on current training batch.'''
+    def update(self, rollouts, device="cpu"):
+        """Updates model parameters based on current training batch."""
         results = defaultdict(list)
-        num_mini_batch = rollouts.max_length * rollouts.batch_size // self.mini_batch_size
+        num_mini_batch = (
+            rollouts.max_length * rollouts.batch_size // self.mini_batch_size
+        )
         for _ in range(self.opt_epochs):
             p_loss_epoch, v_loss_epoch, e_loss_epoch, kl_epoch = 0, 0, 0, 0
             for batch in rollouts.sampler(self.mini_batch_size, device):
                 # Actor update.
                 policy_loss, entropy_loss, approx_kl = self.compute_policy_loss(batch)
                 # Update only when no KL constraint or constraint is satisfied.
-                if (self.target_kl <= 0) or (self.target_kl > 0 and approx_kl <= 1.5 * self.target_kl):
+                if (self.target_kl <= 0) or (
+                    self.target_kl > 0 and approx_kl <= 1.5 * self.target_kl
+                ):
                     self.actor_opt.zero_grad()
                     (policy_loss + self.entropy_coef * entropy_loss).backward()
                     self.actor_opt.step()
@@ -136,24 +139,18 @@ class PPOAgent:
                 v_loss_epoch += value_loss.item()
                 e_loss_epoch += entropy_loss.item()
                 kl_epoch += approx_kl.item()
-            results['policy_loss'].append(p_loss_epoch / num_mini_batch)
-            results['value_loss'].append(v_loss_epoch / num_mini_batch)
-            results['entropy_loss'].append(e_loss_epoch / num_mini_batch)
-            results['approx_kl'].append(kl_epoch / num_mini_batch)
+            results["policy_loss"].append(p_loss_epoch / num_mini_batch)
+            results["value_loss"].append(v_loss_epoch / num_mini_batch)
+            results["entropy_loss"].append(e_loss_epoch / num_mini_batch)
+            results["approx_kl"].append(kl_epoch / num_mini_batch)
         results = {k: sum(v) / len(v) for k, v in results.items()}
         return results
 
 
 class MLPActor(nn.Module):
-    '''Actor MLP model.'''
+    """Actor MLP model."""
 
-    def __init__(self,
-                 obs_dim,
-                 act_dim,
-                 hidden_dims,
-                 activation,
-                 discrete=False
-                 ):
+    def __init__(self, obs_dim, act_dim, hidden_dims, activation, discrete=False):
         super().__init__()
         self.pi_net = MLP(obs_dim, act_dim, hidden_dims, activation)
         # Construct output action distribution.
@@ -164,10 +161,7 @@ class MLPActor(nn.Module):
             self.logstd = nn.Parameter(-0.5 * torch.ones(act_dim))
             self.dist_fn = lambda x: Normal(x, self.logstd.exp())
 
-    def forward(self,
-                obs,
-                act=None
-                ):
+    def forward(self, obs, act=None):
         dist = self.dist_fn(self.pi_net(obs))
         logp_a = None
         if act is not None:
@@ -176,36 +170,25 @@ class MLPActor(nn.Module):
 
 
 class MLPCritic(nn.Module):
-    '''Critic MLP model.'''
+    """Critic MLP model."""
 
-    def __init__(self,
-                 obs_dim,
-                 hidden_dims,
-                 activation
-                 ):
+    def __init__(self, obs_dim, hidden_dims, activation):
         super().__init__()
         self.v_net = MLP(obs_dim, 1, hidden_dims, activation)
 
-    def forward(self,
-                obs
-                ):
+    def forward(self, obs):
         return self.v_net(obs)
 
 
 class MLPActorCritic(nn.Module):
-    '''Model for the actor-critic agent.
+    """Model for the actor-critic agent.
 
     Attributes:
         actor (MLPActor): policy network.
         critic (MLPCritic): value network.
-    '''
+    """
 
-    def __init__(self,
-                 obs_space,
-                 act_space,
-                 hidden_dims=(64, 64),
-                 activation='tanh'
-                 ):
+    def __init__(self, obs_space, act_space, hidden_dims=(64, 64), activation="tanh"):
         super().__init__()
         obs_dim = obs_space.shape[0]
         if isinstance(act_space, Box):
@@ -219,39 +202,30 @@ class MLPActorCritic(nn.Module):
         # Value function.
         self.critic = MLPCritic(obs_dim, hidden_dims, activation)
 
-    def step(self,
-             obs
-             ):
+    def step(self, obs):
         dist, _ = self.actor(obs)
         a = dist.sample()
         logp_a = dist.log_prob(a)
         v = self.critic(obs)
         return a.cpu().numpy(), v.cpu().numpy(), logp_a.cpu().numpy()
 
-    def act(self,
-            obs
-            ):
+    def act(self, obs):
         dist, _ = self.actor(obs)
         a = dist.mode()
         return a.cpu().numpy()
 
 
 class PPOBuffer(object):
-    '''Storage for a batch of episodes during training.
+    """Storage for a batch of episodes during training.
 
     Attributes:
         max_length (int): maximum length of episode.
         batch_size (int): number of episodes per batch.
         scheme (dict): describs shape & other info of data to be stored.
         keys (list): names of all data from scheme.
-    '''
+    """
 
-    def __init__(self,
-                 obs_space,
-                 act_space,
-                 max_length,
-                 batch_size
-                 ):
+    def __init__(self, obs_space, act_space, max_length, batch_size):
         super().__init__()
         self.max_length = max_length
         self.batch_size = batch_size
@@ -262,105 +236,70 @@ class PPOBuffer(object):
         else:
             act_dim = act_space.n
         self.scheme = {
-            'obs': {
-                'vshape': (T, N, *obs_dim)
-            },
-            'act': {
-                'vshape': (T, N, act_dim)
-            },
-            'rew': {
-                'vshape': (T, N, 1)
-            },
-            'mask': {
-                'vshape': (T, N, 1),
-                'init': np.ones
-            },
-            'v': {
-                'vshape': (T, N, 1)
-            },
-            'logp': {
-                'vshape': (T, N, 1)
-            },
-            'ret': {
-                'vshape': (T, N, 1)
-            },
-            'adv': {
-                'vshape': (T, N, 1)
-            },
-            'terminal_v': {
-                'vshape': (T, N, 1)
-            }
+            "obs": {"vshape": (T, N, *obs_dim)},
+            "act": {"vshape": (T, N, act_dim)},
+            "rew": {"vshape": (T, N, 1)},
+            "mask": {"vshape": (T, N, 1), "init": np.ones},
+            "v": {"vshape": (T, N, 1)},
+            "logp": {"vshape": (T, N, 1)},
+            "ret": {"vshape": (T, N, 1)},
+            "adv": {"vshape": (T, N, 1)},
+            "terminal_v": {"vshape": (T, N, 1)},
         }
         self.keys = list(self.scheme.keys())
         self.reset()
 
     def reset(self):
-        '''Allocates space for containers.'''
+        """Allocates space for containers."""
         for k, info in self.scheme.items():
-            assert 'vshape' in info, f'Scheme must define vshape for {k}'
-            vshape = info['vshape']
-            dtype = info.get('dtype', np.float32)
-            init = info.get('init', np.zeros)
+            assert "vshape" in info, f"Scheme must define vshape for {k}"
+            vshape = info["vshape"]
+            dtype = info.get("dtype", np.float32)
+            init = info.get("init", np.zeros)
             self.__dict__[k] = init(vshape, dtype=dtype)
         self.t = 0
 
-    def push(self,
-             batch
-             ):
-        '''Inserts transition step data (as dict) to storage.'''
+    def push(self, batch):
+        """Inserts transition step data (as dict) to storage."""
         for k, v in batch.items():
             assert k in self.keys
-            shape = self.scheme[k]['vshape'][1:]
-            dtype = self.scheme[k].get('dtype', np.float32)
+            shape = self.scheme[k]["vshape"][1:]
+            dtype = self.scheme[k].get("dtype", np.float32)
             v_ = np.asarray(deepcopy(v), dtype=dtype).reshape(shape)
             self.__dict__[k][self.t] = v_
         self.t = (self.t + 1) % self.max_length
 
-    def get(self,
-            device='cpu'
-            ):
-        '''Returns all data.'''
+    def get(self, device="cpu"):
+        """Returns all data."""
         batch = {}
         for k, info in self.scheme.items():
-            shape = info['vshape'][2:]
+            shape = info["vshape"][2:]
             data = self.__dict__[k].reshape(-1, *shape)
             batch[k] = torch.as_tensor(data, device=device)
         return batch
 
-    def sample(self,
-               indices
-               ):
-        '''Returns partial data.'''
+    def sample(self, indices):
+        """Returns partial data."""
         batch = {}
         for k, info in self.scheme.items():
-            shape = info['vshape'][2:]
+            shape = info["vshape"][2:]
             batch[k] = self.__dict__[k].reshape(-1, *shape)[indices]
         return batch
 
-    def sampler(self,
-                mini_batch_size,
-                device='cpu',
-                drop_last=True
-                ):
-        '''Makes sampler to loop through all data.'''
+    def sampler(self, mini_batch_size, device="cpu", drop_last=True):
+        """Makes sampler to loop through all data."""
         total_steps = self.max_length * self.batch_size
         sampler = random_sample(np.arange(total_steps), mini_batch_size, drop_last)
         for indices in sampler:
             batch = self.sample(indices)
-            batch = {
-                k: torch.as_tensor(v, device=device) for k, v in batch.items()
-            }
+            batch = {k: torch.as_tensor(v, device=device) for k, v in batch.items()}
             yield batch
 
 
-def random_sample(indices,
-                  batch_size,
-                  drop_last=True
-                  ):
-    '''Returns index batches to iterate over.'''
+def random_sample(indices, batch_size, drop_last=True):
+    """Returns index batches to iterate over."""
     indices = np.asarray(np.random.permutation(indices))
-    batches = indices[:len(indices) // batch_size * batch_size].reshape(
-        -1, batch_size)
+    batches = indices[: len(indices) // batch_size * batch_size].reshape(-1, batch_size)
     for batch in batches:
         yield batch
     if not drop_last:
@@ -369,16 +308,17 @@ def random_sample(indices,
             yield indices[-r:]
 
 
-def compute_returns_and_advantages(rews,
-                                   vals,
-                                   masks,
-                                   terminal_vals=0,
-                                   last_val=0,
-                                   gamma=0.99,
-                                   use_gae=False,
-                                   gae_lambda=0.95
-                                   ):
-    '''Useful for policy-gradient algorithms.'''
+def compute_returns_and_advantages(
+    rews,
+    vals,
+    masks,
+    terminal_vals=0,
+    last_val=0,
+    gamma=0.99,
+    use_gae=False,
+    gae_lambda=0.95,
+):
+    """Useful for policy-gradient algorithms."""
     T, N = rews.shape[:2]
     rets, advs = np.zeros((T, N, 1)), np.zeros((T, N, 1))
     ret, adv = last_val, np.zeros((N, 1))

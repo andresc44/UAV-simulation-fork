@@ -28,7 +28,7 @@ class GaussianProcess(RandomProcess):
 
 
 class OrnsteinUhlenbeckProcess(RandomProcess):
-    def __init__(self, size, std, theta=.15, dt=1e-2, x0=None):
+    def __init__(self, size, std, theta=0.15, dt=1e-2, x0=None):
         self.theta = theta
         self.mu = 0
         self.std = std
@@ -38,8 +38,11 @@ class OrnsteinUhlenbeckProcess(RandomProcess):
         self.reset_states()
 
     def sample(self):
-        x = self.x_prev + self.theta * (self.mu - self.x_prev) * self.dt + self.std() * np.sqrt(
-            self.dt) * np.random.randn(*self.size)
+        x = (
+            self.x_prev
+            + self.theta * (self.mu - self.x_prev) * self.dt
+            + self.std() * np.sqrt(self.dt) * np.random.randn(*self.size)
+        )
         self.x_prev = x
         return x
 
@@ -47,8 +50,8 @@ class OrnsteinUhlenbeckProcess(RandomProcess):
         self.x_prev = self.x0 if self.x0 is not None else np.zeros(self.size)
 
     def state_dict(self):
-        return {'x_prev': self.x_prev, 'std': self.std.state_dict()}
+        return {"x_prev": self.x_prev, "std": self.std.state_dict()}
 
     def load_state_dict(self, state):
-        self.x_prev = state['x_prev']
-        self.std.load_state_dict(state['std'])
+        self.x_prev = state["x_prev"]
+        self.std.load_state_dict(state["std"])

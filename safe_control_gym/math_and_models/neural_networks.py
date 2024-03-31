@@ -1,4 +1,4 @@
-'''Neural networks.'''
+"""Neural networks."""
 
 import torch
 import torch.nn as nn
@@ -16,18 +16,19 @@ def init_(module):
 
 
 class MLP(nn.Module):
-    '''MLP network (can be used as value or policy).'''
+    """MLP network (can be used as value or policy)."""
 
-    def __init__(self,
-                 input_dim,
-                 output_dim,
-                 hidden_dims=[],
-                 act='relu',
-                 output_act=None,
-                 init_weights=False,
-                 **kwargs
-                 ):
-        '''Multi-layer perception/fully-connected network.
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        hidden_dims=[],
+        act="relu",
+        output_act=None,
+        init_weights=False,
+        **kwargs
+    ):
+        """Multi-layer perception/fully-connected network.
 
         Args:
             input_dim (int): input dimension.
@@ -35,14 +36,13 @@ class MLP(nn.Module):
             hidden_dims (list): hidden layer dimensions.
             act (str): hidden layer activation.
             output_act (str): output layer activation.
-        '''
+        """
         super(MLP, self).__init__()
         dims = [input_dim] + hidden_dims + [output_dim]
         init_func = init_ if init_weights else lambda x: x
-        self.fcs = nn.ModuleList([
-            init_func(nn.Linear(dims[i], dims[i + 1]))
-            for i in range(len(dims) - 1)
-        ])
+        self.fcs = nn.ModuleList(
+            [init_func(nn.Linear(dims[i], dims[i + 1])) for i in range(len(dims) - 1)]
+        )
         self.act = get_activation(act)
         self.output_act = get_activation(output_act)
 
@@ -55,21 +55,17 @@ class MLP(nn.Module):
 
 
 class CNN(nn.Module):
-    '''CNN network for encoding images.'''
+    """CNN network for encoding images."""
 
-    def __init__(self,
-                 input_dim,
-                 output_dim,
-                 act='relu',
-                 output_act='relu',
-                 **kwargs
-                 ):
+    def __init__(self, input_dim, output_dim, act="relu", output_act="relu", **kwargs):
         super(CNN, self).__init__()
-        self.convs = nn.ModuleList([
-            init_(nn.Conv2d(input_dim, 32, 8, stride=4)),
-            init_(nn.Conv2d(32, 64, 4, stride=2)),
-            init_(nn.Conv2d(64, 32, 3, stride=1))
-        ])
+        self.convs = nn.ModuleList(
+            [
+                init_(nn.Conv2d(input_dim, 32, 8, stride=4)),
+                init_(nn.Conv2d(32, 64, 4, stride=2)),
+                init_(nn.Conv2d(64, 32, 3, stride=1)),
+            ]
+        )
         conv_out_dim = 32 * 7 * 7
         self.fc = init_(nn.Linear(conv_out_dim, output_dim))
         self.act = get_activation(act)
@@ -85,19 +81,15 @@ class CNN(nn.Module):
 
 
 class RNN(nn.Module):
-    '''RNN network (can be used as value or policy).'''
+    """RNN network (can be used as value or policy)."""
 
-    def __init__(self,
-                 input_dim,
-                 output_dim,
-                 **kwargs
-                 ):
+    def __init__(self, input_dim, output_dim, **kwargs):
         super(RNN, self).__init__()
         self.gru = nn.GRU(input_dim, output_dim)
         for name, param in self.gru.named_parameters():
-            if 'bias' in name:
+            if "bias" in name:
                 nn.init.constant_(param, 0)
-            elif 'weight' in name:
+            elif "weight" in name:
                 nn.init.orthogonal_(param)
 
     def forward(self, x, hxs, masks):
@@ -130,7 +122,8 @@ class RNN(nn.Module):
                 start_idx = has_zeros[i]
                 end_idx = has_zeros[i + 1]
                 rnn_scores, hxs = self.gru(
-                    x[start_idx:end_idx], (hxs * masks[start_idx]).unsqueeze(0))
+                    x[start_idx:end_idx], (hxs * masks[start_idx]).unsqueeze(0)
+                )
                 outputs.append(rnn_scores)
             # x: (T, N, *), hxs: (N, *).
             x = torch.cat(outputs, dim=0)

@@ -49,6 +49,29 @@ html5lib = ["html5lib"]
 lxml = ["lxml"]
 
 [[package]]
+name = "black"
+version = "24.3.0"
+description = "The uncompromising code formatter."
+category = "main"
+optional = false
+python-versions = ">=3.8"
+
+[package.dependencies]
+click = ">=8.0.0"
+mypy-extensions = ">=0.4.3"
+packaging = ">=22.0"
+pathspec = ">=0.9.0"
+platformdirs = ">=2"
+tomli = {version = ">=1.1.0", markers = "python_version < \"3.11\""}
+typing-extensions = {version = ">=4.0.1", markers = "python_version < \"3.11\""}
+
+[package.extras]
+colorama = ["colorama (>=0.4.3)"]
+d = ["aiohttp (>=3.7.4,!=3.9.0)", "aiohttp (>=3.7.4)"]
+jupyter = ["ipython (>=7.8.0)", "tokenize-rt (>=3.2.0)"]
+uvloop = ["uvloop (>=0.15.2)"]
+
+[[package]]
 name = "casadi"
 version = "3.6.5"
 description = "CasADi -- framework for algorithmic differentiation and numeric optimization"
@@ -416,6 +439,17 @@ optional = false
 python-versions = ">=3.7"
 
 [[package]]
+name = "isort"
+version = "5.13.2"
+description = "A Python utility / library to sort Python imports."
+category = "main"
+optional = false
+python-versions = ">=3.8.0"
+
+[package.extras]
+colors = ["colorama (>=0.4.6)"]
+
+[[package]]
 name = "jax-jumpy"
 version = "1.0.0"
 description = "Common backend for Jax or Numpy."
@@ -577,6 +611,14 @@ testing = ["pytest", "coverage", "astroid (>=1.5.3,<1.6.0)", "pylint (>=1.7.2,<1
 yaml = ["PyYAML (>=5.1.0)"]
 
 [[package]]
+name = "mypy-extensions"
+version = "1.0.0"
+description = "Type system extensions for programs checked with the mypy type checker."
+category = "main"
+optional = false
+python-versions = ">=3.5"
+
+[[package]]
 name = "networkx"
 version = "3.2.1"
 description = "Python package for creating and manipulating graphs and networks"
@@ -660,7 +702,7 @@ numpy = [
 
 [[package]]
 name = "osqp"
-version = "0.6.5"
+version = "0.6.4"
 description = "OSQP: The Operator Splitting QP Solver"
 category = "main"
 optional = false
@@ -669,7 +711,7 @@ python-versions = "*"
 [package.dependencies]
 numpy = ">=1.7"
 qdldl = "*"
-scipy = ">=0.13.2,<1.12.0"
+scipy = ">=0.13.2"
 
 [[package]]
 name = "packaging"
@@ -697,6 +739,14 @@ pytz = ">=2020.1"
 
 [package.extras]
 test = ["hypothesis (>=5.5.3)", "pytest (>=6.0)", "pytest-xdist (>=1.31)"]
+
+[[package]]
+name = "pathspec"
+version = "0.12.1"
+description = "Utility library for gitignore style pattern matching of file paths."
+category = "main"
+optional = false
+python-versions = ">=3.8"
 
 [[package]]
 name = "pillow"
@@ -1054,17 +1104,17 @@ plots = ["matplotlib (>=2.0.0)"]
 
 [[package]]
 name = "scipy"
-version = "1.11.4"
+version = "1.12.0"
 description = "Fundamental algorithms for scientific computing in Python"
 category = "main"
 optional = false
 python-versions = ">=3.9"
 
 [package.dependencies]
-numpy = ">=1.21.6,<1.28.0"
+numpy = ">=1.22.4,<1.29.0"
 
 [package.extras]
-test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "asv", "mpmath", "gmpy2", "threadpoolctl", "scikit-umfpack", "pooch"]
+test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "asv", "mpmath", "gmpy2", "threadpoolctl", "scikit-umfpack", "pooch", "hypothesis"]
 doc = ["sphinx (!=4.1.0)", "pydata-sphinx-theme (==0.9.0)", "sphinx-design (>=0.2.0)", "matplotlib (>2)", "numpydoc", "jupytext", "myst-nb", "pooch"]
 dev = ["mypy", "typing-extensions", "types-psutil", "pycodestyle", "ruff", "cython-lint (>=0.12.2)", "rich-click", "click", "doit (>=0.36.0)", "pydevtool"]
 
@@ -1249,13 +1299,14 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "8502891ae5a6a284fc7710cebd0a64c26bad8f58293e4eb5b4630ae6c8179be5"
+content-hash = "1c54dbd0d1c26970cc34f39b592878e58a8c6c77df3de96fdd261373705dc3c9"
 
 [metadata.files]
 absl-py = []
 async-timeout = []
 attrs = []
 beautifulsoup4 = []
+black = []
 casadi = []
 certifi = []
 cfgv = []
@@ -1283,6 +1334,7 @@ identify = []
 idna = []
 imageio = []
 iniconfig = []
+isort = []
 jax-jumpy = []
 jaxtyping = []
 joblib = []
@@ -1296,6 +1348,7 @@ matplotlib = []
 mosek = []
 msgpack = []
 munch = []
+mypy-extensions = []
 networkx = []
 nodeenv = []
 numpy = []
@@ -1307,6 +1360,7 @@ opencv-python = []
 osqp = []
 packaging = []
 pandas = []
+pathspec = []
 pillow = []
 platformdirs = []
 pluggy = []

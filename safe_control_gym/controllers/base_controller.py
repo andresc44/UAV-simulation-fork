@@ -1,4 +1,4 @@
-'''Base controller.'''
+"""Base controller."""
 
 from abc import ABC, abstractmethod
 
@@ -6,18 +6,19 @@ import torch
 
 
 class BaseController(ABC):
-    '''Template for controller/agent, implement the following methods as needed.'''
+    """Template for controller/agent, implement the following methods as needed."""
 
-    def __init__(self,
-                 env_func,
-                 training=True,
-                 checkpoint_path='temp/model_latest.pt',
-                 output_dir='temp',
-                 use_gpu=False,
-                 seed=0,
-                 **kwargs
-                 ):
-        '''Initializes controller agent.
+    def __init__(
+        self,
+        env_func,
+        training=True,
+        checkpoint_path="temp/model_latest.pt",
+        output_dir="temp",
+        use_gpu=False,
+        seed=0,
+        **kwargs
+    ):
+        """Initializes controller agent.
 
         Args:
             env_func (callable): Function to instantiate task/env.
@@ -26,7 +27,7 @@ class BaseController(ABC):
             output_dir (str): Folder to write outputs.
             use_gpu (bool): False (use cpu) True (use cuda).
             seed (int): Random seed.
-        '''
+        """
 
         # Base args.
         self.env_func = env_func
@@ -34,7 +35,7 @@ class BaseController(ABC):
         self.checkpoint_path = checkpoint_path
         self.output_dir = output_dir
         self.use_gpu = use_gpu and torch.cuda.is_available()
-        self.device = 'cpu' if self.use_gpu is False else 'cuda'
+        self.device = "cpu" if self.use_gpu is False else "cuda"
         self.seed = seed
         self.prior_info = {}
 
@@ -46,7 +47,7 @@ class BaseController(ABC):
 
     @abstractmethod
     def select_action(self, obs, info=None):
-        '''Determine the action to take at the current timestep.
+        """Determine the action to take at the current timestep.
 
         Args:
             obs (ndarray): The observation at this timestep.
@@ -54,83 +55,76 @@ class BaseController(ABC):
 
         Returns:
             action (ndarray): The action chosen by the controller.
-        '''
+        """
         raise NotImplementedError
 
     def extract_step(self, info=None):
-        '''Extracts the current step from the info.
+        """Extracts the current step from the info.
 
         Args:
             info (dict): The info list returned from the environment.
 
         Returns:
             step (int): The current step/iteration of the environment.
-        '''
+        """
 
         if info is not None:
-            step = info['current_step']
+            step = info["current_step"]
         else:
             step = 0
 
         return step
 
-    def learn(self,
-              env=None,
-              **kwargs
-              ):
-        '''Performs learning (pre-training, training, fine-tuning, etc).
+    def learn(self, env=None, **kwargs):
+        """Performs learning (pre-training, training, fine-tuning, etc).
 
         Args:
             env (BenchmarkEnv): The environment to be used for training.
-        '''
+        """
         return
 
     @abstractmethod
     def reset(self):
-        '''Do initializations for training or evaluation.'''
+        """Do initializations for training or evaluation."""
         raise NotImplementedError
 
     def reset_before_run(self, obs=None, info=None, env=None):
-        '''Reinitialize just the controller before a new run.
+        """Reinitialize just the controller before a new run.
 
         Args:
             obs (ndarray): The initial observation for the new run.
             info (dict): The first info of the new run.
             env (BenchmarkEnv): The environment to be used for the new run.
-        '''
+        """
         self.setup_results_dict()
 
     @abstractmethod
     def close(self):
-        '''Shuts down and cleans up lingering resources.'''
+        """Shuts down and cleans up lingering resources."""
         raise NotImplementedError
 
-    def save(self,
-             path
-             ):
-        '''Saves model params and experiment state to checkpoint path.
+    def save(self, path):
+        """Saves model params and experiment state to checkpoint path.
 
         Args:
             path (str): The path where to save the model params/experiment state.
-        '''
+        """
         return
 
-    def load(self,
-             path
-             ):
-        '''Restores model and experiment given checkpoint path.
+    def load(self, path):
+        """Restores model and experiment given checkpoint path.
 
         Args:
             path (str): The path where the model params/experiment state are saved.
-        '''
+        """
         return
 
     def setup_results_dict(self):
-        '''Setup the results dictionary to store run information.'''
+        """Setup the results dictionary to store run information."""
         self.results_dict = {}
 
     def get_prior(self, env, prior_info={}):
-        '''Fetch the prior model from the env for the controller.
+        """Fetch the prior model from the env for the controller.
 
         Note there's a default env.symbolic when each each env is created.
         To make a different prior model, do the following when initializing a ctrl::
@@ -169,19 +163,21 @@ class BaseController(ABC):
 
         Returns:
             SymbolicModel: CasAdi prior model.
-        '''
+        """
         if not prior_info:
-            prior_info = getattr(self, 'prior_info', {})
-        prior_prop = prior_info.get('prior_prop', {})
+            prior_info = getattr(self, "prior_info", {})
+        prior_prop = prior_info.get("prior_prop", {})
 
         # randomize prior prop, similar to randomizing the inertial_prop in BenchmarkEnv
         # this can simulate the estimation errors in the prior model
-        randomize_prior_prop = prior_info.get('randomize_prior_prop', False)
-        prior_prop_rand_info = prior_info.get('prior_prop_rand_info', {})
+        randomize_prior_prop = prior_info.get("randomize_prior_prop", False)
+        prior_prop_rand_info = prior_info.get("prior_prop_rand_info", {})
         if randomize_prior_prop and prior_prop_rand_info:
             # check keys, this is due to the current implementation of BenchmarkEnv._randomize_values_by_info()
             for k in prior_prop_rand_info:
-                assert k in prior_prop, 'A prior param to randomize does not have a base value in prior_prop.'
+                assert (
+                    k in prior_prop
+                ), "A prior param to randomize does not have a base value in prior_prop."
             prior_prop = env._randomize_values_by_info(prior_prop, prior_prop_rand_info)
 
         # Note we only reset the symbolic model when prior_prop is nonempty

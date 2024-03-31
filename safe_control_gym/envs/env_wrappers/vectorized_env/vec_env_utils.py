@@ -5,33 +5,35 @@ import numpy as np
 
 
 class CloudpickleWrapper(object):
-    '''Uses cloudpickle to serialize contents and stop multiprocessing from using pickle.'''
+    """Uses cloudpickle to serialize contents and stop multiprocessing from using pickle."""
 
     def __init__(self, x):
         self.x = x
 
     def __getstate__(self):
         import cloudpickle
+
         return cloudpickle.dumps(self.x)
 
     def __setstate__(self, ob):
         import pickle
+
         self.x = pickle.loads(ob)
 
 
 @contextlib.contextmanager
 def clear_mpi_env_vars():
-    '''From mpi4py import MPI will call MPI_Init by default.
+    """From mpi4py import MPI will call MPI_Init by default.
 
     If the child process has MPI environment variables, MPI will think that the child process
     is an MPI process just like the parent and do bad things such as hang.
 
     This context manager is a hacky way to clear those environment variables temporarily such
     as when we are starting multiprocessing Processes.
-    '''
+    """
     removed_environment = {}
     for k, v in list(os.environ.items()):
-        for prefix in ['OMPI_', 'PMI_']:
+        for prefix in ["OMPI_", "PMI_"]:
             if k.startswith(prefix):
                 removed_environment[k] = v
                 del os.environ[k]
@@ -42,7 +44,7 @@ def clear_mpi_env_vars():
 
 
 def tile_images(img_nhwc):
-    '''Tile N images into one big PxQ image.
+    """Tile N images into one big PxQ image.
 
     (P,Q) are chosen to be as close as possible, and if N is square, then P=Q.
 
@@ -52,13 +54,12 @@ def tile_images(img_nhwc):
 
     Returns:
         img_Hh_Ww_c: ndarray with ndim=3.
-    '''
+    """
     img_nhwc = np.asarray(img_nhwc)
     N, h, w, c = img_nhwc.shape
     H = int(np.ceil(np.sqrt(N)))
     W = int(np.ceil(float(N) / H))
-    img_nhwc = np.array(
-        list(img_nhwc) + [img_nhwc[0] * 0 for _ in range(N, H * W)])
+    img_nhwc = np.array(list(img_nhwc) + [img_nhwc[0] * 0 for _ in range(N, H * W)])
     img_HWhwc = img_nhwc.reshape(H, W, h, w, c)
     img_HhWwc = img_HWhwc.transpose(0, 2, 1, 3, 4)
     img_Hh_Ww_c = img_HhWwc.reshape(H * h, W * w, c)
@@ -81,6 +82,7 @@ def _unflatten_obs(obs):
 
     def split_batch(data):
         return [d[0] for d in np.split(data, len(data))]
+
     if isinstance(obs, dict):
         keys = list(obs.keys())
         unflat_obs = [split_batch(obs[k]) for k in keys]

@@ -1,8 +1,8 @@
-'''Control barrier function (CBF) quadratic programming (QP) safety filter with learned Lie derivatives
+"""Control barrier function (CBF) quadratic programming (QP) safety filter with learned Lie derivatives
 
 Reference:
     * [Learning for Safety-Critical Control with Control Barrier Functions](https://arxiv.org/abs/1912.10099)
-'''
+"""
 
 import os
 from typing import Tuple
@@ -17,25 +17,27 @@ from safe_control_gym.safety_filters.cbf.cbf_utils import CBFBuffer
 
 
 class CBF_NN(CBF):
-    '''Neural Network Based Control Barrier Function Class.'''
+    """Neural Network Based Control Barrier Function Class."""
 
-    def __init__(self,
-                 env_func,
-                 # CBF Parameters
-                 slope: float = 0.1,
-                 soft_constrained: bool = True,
-                 slack_weight: float = 10000.0,
-                 slack_tolerance: float = 1.0E-3,
-                 # NN Parameters
-                 max_num_steps: int = 250,
-                 hidden_dims: list = None,
-                 learning_rate: float = 0.001,
-                 num_episodes: int = 20,
-                 max_buffer_size: int = 1.0E+6,
-                 train_batch_size: int = 64,
-                 train_iterations: int = 200,
-                 **kwargs):
-        '''
+    def __init__(
+        self,
+        env_func,
+        # CBF Parameters
+        slope: float = 0.1,
+        soft_constrained: bool = True,
+        slack_weight: float = 10000.0,
+        slack_tolerance: float = 1.0e-3,
+        # NN Parameters
+        max_num_steps: int = 250,
+        hidden_dims: list = None,
+        learning_rate: float = 0.001,
+        num_episodes: int = 20,
+        max_buffer_size: int = 1.0e6,
+        train_batch_size: int = 64,
+        train_iterations: int = 200,
+        **kwargs,
+    ):
+        """
         CBF-QP safety filter with learned Lie derivative: The CBF's superlevel set defines a positively control invariant
         set. A QP based on the CBF's Lie derivative with respect to the dynamics allows to filter arbitrary control
         inputs to keep the system inside the CBF's superlevel set. Due to model mismatch, the Lie derivative is also
@@ -55,9 +57,11 @@ class CBF_NN(CBF):
             max_buffer_size (int): Maximum size of the CBFBuffer.
             train_batch_size (int): Size of the batches used during training.
             train_iterations (int): Number of iterations to update policy with batch.
-        '''
+        """
 
-        super().__init__(env_func, slope, soft_constrained, slack_weight, slack_tolerance, **kwargs)
+        super().__init__(
+            env_func, slope, soft_constrained, slack_weight, slack_tolerance, **kwargs
+        )
 
         self.step_size = self.env.PYB_FREQ // self.env.CTRL_FREQ
 
@@ -70,23 +74,33 @@ class CBF_NN(CBF):
         self.train_iterations = train_iterations
 
         # Neural network to learn the residual in the lie derivative
-        self.mlp = MLP(self.model.nx, self.model.nu + 1, hidden_dims=self.hidden_dims, activation='relu')
+        self.mlp = MLP(
+            self.model.nx,
+            self.model.nu + 1,
+            hidden_dims=self.hidden_dims,
+            activation="relu",
+        )
         # Optimizer
         self.opt = torch.optim.Adam(self.mlp.parameters(), self.learning_rate)
 
         max_buffer_size = int(self.max_buffer_size)
-        self.buffer = CBFBuffer(self.env.observation_space, self.env.action_space, max_buffer_size, self.device,
-                                self.train_batch_size)
+        self.buffer = CBFBuffer(
+            self.env.observation_space,
+            self.env.action_space,
+            max_buffer_size,
+            self.device,
+            self.train_batch_size,
+        )
 
         self.uncertified_controller = None
         self.setup_optimizer()
 
     def setup_optimizer(self):
-        '''Setup the certifying CBF problem.'''
+        """Setup the certifying CBF problem."""
         nx, nu = self.model.nx, self.model.nu
 
         # Define optimizer
-        opti = cs.Opti('conic')  # Tell casadi that it's a conic problem
+        opti = cs.Opti("conic")  # Tell casadi that it's a conic problem
 
         # Optimization variable: control input
         u_var = opti.variable(nu, 1)
@@ -98,8 +112,8 @@ class CBF_NN(CBF):
         b_var = opti.parameter(1, 1)
 
         # Evaluate at Lie derivative and CBF at the current state
-        lie_derivative_at_x = self.lie_derivative(X=current_state_var, u=u_var)['LfV']
-        barrier_at_x = self.cbf(X=current_state_var)['cbf']
+        lie_derivative_at_x = self.lie_derivative(X=current_state_var, u=u_var)["LfV"]
+        barrier_at_x = self.cbf(X=current_state_var)["cbf"]
 
         learned_residual = cs.dot(a_var.T, u_var) + b_var
 
@@ -108,7 +122,10 @@ class CBF_NN(CBF):
 
         if self.soft_constrained:
             # Quadratic objective
-            cost = 0.5 * cs.norm_2(uncertified_action_var - u_var) ** 2 + self.slack_weight * slack_var**2
+            cost = (
+                0.5 * cs.norm_2(uncertified_action_var - u_var) ** 2
+                + self.slack_weight * slack_var**2
+            )
 
             # Soften CBF constraint
             right_hand_side = slack_var
@@ -121,7 +138,12 @@ class CBF_NN(CBF):
             cost = 0.5 * cs.norm_2(uncertified_action_var - u_var) ** 2
 
         # CBF constraint
-        opti.subject_to(-self.linear_func(x=barrier_at_x)['y'] - lie_derivative_at_x - learned_residual <= right_hand_side)
+        opti.subject_to(
+            -self.linear_func(x=barrier_at_x)["y"]
+            - lie_derivative_at_x
+            - learned_residual
+            <= right_hand_side
+        )
 
         # Input constraints
         for input_constraint in self.input_constraints_sym:
@@ -130,27 +152,28 @@ class CBF_NN(CBF):
         opti.minimize(cost)
 
         # Set verbosity option of optimizer
-        opts = {'printLevel': 'low', 'error_on_fail': False}
+        opts = {"printLevel": "low", "error_on_fail": False}
 
         # Select QP solver
-        opti.solver('qpoases', opts)
+        opti.solver("qpoases", opts)
 
         self.opti_dict = {
-            'opti': opti,
-            'u_var': u_var,
-            'slack_var': slack_var,
-            'current_state_var': current_state_var,
-            'uncertified_action_var': uncertified_action_var,
-            'a_var': a_var,
-            'b_var': b_var,
-            'cost': cost
+            "opti": opti,
+            "u_var": u_var,
+            "slack_var": slack_var,
+            "current_state_var": current_state_var,
+            "uncertified_action_var": uncertified_action_var,
+            "a_var": a_var,
+            "b_var": b_var,
+            "cost": cost,
         }
 
-    def solve_optimization(self,
-                           current_state: np.ndarray,
-                           uncertified_action: np.ndarray,
-                           ) -> Tuple[np.ndarray, bool]:
-        '''Solve the CBF optimization problem for a given observation and uncertified input.
+    def solve_optimization(
+        self,
+        current_state: np.ndarray,
+        uncertified_action: np.ndarray,
+    ) -> Tuple[np.ndarray, bool]:
+        """Solve the CBF optimization problem for a given observation and uncertified input.
 
         Args:
             current_state (np.ndarray): Current state/observation.
@@ -159,17 +182,17 @@ class CBF_NN(CBF):
         Returns:
             certified_action (np.ndarray): The certified action.
             feasible (bool): Whether the safety filtering was feasible or not.
-        '''
+        """
 
         opti_dict = self.opti_dict
-        opti = opti_dict['opti']
-        u_var = opti_dict['u_var']
-        slack_var = opti_dict['slack_var']
-        current_state_var = opti_dict['current_state_var']
-        uncertified_action_var = opti_dict['uncertified_action_var']
-        a_var = opti_dict['a_var']
-        b_var = opti_dict['b_var']
-        cost = opti_dict['cost']
+        opti = opti_dict["opti"]
+        u_var = opti_dict["u_var"]
+        slack_var = opti_dict["slack_var"]
+        current_state_var = opti_dict["current_state_var"]
+        uncertified_action_var = opti_dict["uncertified_action_var"]
+        a_var = opti_dict["a_var"]
+        b_var = opti_dict["b_var"]
+        cost = opti_dict["cost"]
 
         opti.set_value(current_state_var, current_state)
         opti.set_value(uncertified_action_var, uncertified_action)
@@ -187,56 +210,62 @@ class CBF_NN(CBF):
             if self.soft_constrained:
                 slack_val = sol.value(slack_var)
                 if slack_val > self.slack_tolerance:
-                    print('Slack:', slack_val)
+                    print("Slack:", slack_val)
                     feasible = False
             cost = sol.value(cost)
         except RuntimeError as e:
             print(e)
             feasible = False
             certified_action = opti.debug.value(u_var)
-            print('Certified_action:', certified_action)
+            print("Certified_action:", certified_action)
             if self.soft_constrained:
                 slack_val = opti.debug.value(slack_var)
-                print('Slack:', slack_val)
-            print('Lie Derivative:', self.lie_derivative(X=current_state, u=certified_action)['LfV'])
-            print('Linear Function:', self.linear_func(x=self.cbf(X=current_state)['cbf'])['y'])
-            print('------------------------------------------------')
+                print("Slack:", slack_val)
+            print(
+                "Lie Derivative:",
+                self.lie_derivative(X=current_state, u=certified_action)["LfV"],
+            )
+            print(
+                "Linear Function:",
+                self.linear_func(x=self.cbf(X=current_state)["cbf"])["y"],
+            )
+            print("------------------------------------------------")
         return certified_action, feasible
 
-    def extract_a_b(self,
-                    current_state: np.ndarray
-                    ) -> Tuple[np.ndarray, np.ndarray]:
-        '''Extracts the a and b vectors from the torch state.
+    def extract_a_b(self, current_state: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Extracts the a and b vectors from the torch state.
 
         Args:
             current_state (np.ndarray): The current state of the system.
 
         Returns:
             a, b (np.ndarray): The a and b vectors used to calculate the learned residual.
-        '''
+        """
         torch_state = torch.from_numpy(current_state)
         torch_state = torch.unsqueeze(torch_state, 0)
         torch_state = torch_state.to(torch.float32)
         a_b = self.mlp(torch_state)
         a_b = a_b.detach().numpy()
-        a = a_b[0, :self.model.nu]
+        a = a_b[0, : self.model.nu]
         b = a_b[0, -1]
 
         return a, b
 
-    def compute_loss(self,
-                     batch: dict
-                     ) -> float:
-        '''Compute training loss of the neural network that represents the Lie derivative error.
+    def compute_loss(self, batch: dict) -> float:
+        """Compute training loss of the neural network that represents the Lie derivative error.
 
         Args:
             batch (dict): The batch of data used during training.
 
         Returns:
             loss (float): The loss of the batch.
-        '''
-        state, act, barrier_dot, barrier_dot_approx = batch['state'], batch['act'], batch['barrier_dot'], \
-            batch['barrier_dot_approx']
+        """
+        state, act, barrier_dot, barrier_dot_approx = (
+            batch["state"],
+            batch["act"],
+            batch["barrier_dot"],
+            batch["barrier_dot_approx"],
+        )
 
         # Predict a and b vectors
         a_b = self.mlp(state)
@@ -250,72 +279,59 @@ class CBF_NN(CBF):
         loss = (h_dot_estimate - barrier_dot_approx).pow(2).mean()
         return loss
 
-    def update(self,
-               batch: dict
-               ):
-        '''Update the neural network parameters.
+    def update(self, batch: dict):
+        """Update the neural network parameters.
 
         Args:
             batch (dict): The batch of data used during training.
-        '''
+        """
         loss = self.compute_loss(batch)
         self.opt.zero_grad()
         loss.backward()
         self.opt.step()
 
     def reset(self):
-        '''Resets the safety filter.'''
+        """Resets the safety filter."""
         super().reset()
-        if hasattr(self, 'buffer'):
+        if hasattr(self, "buffer"):
             self.buffer.reset()
 
-    def save(self,
-             path: str
-             ):
-        '''Saves model params and experiment state to path.
+    def save(self, path: str):
+        """Saves model params and experiment state to path.
 
         Args:
             path (str): The path where to save the model params/experiment state.
-        '''
+        """
         path_dir = os.path.dirname(path)
         os.makedirs(path_dir, exist_ok=True)
 
-        state_dict = {
-            'agent': self.mlp.state_dict()
-        }
+        state_dict = {"agent": self.mlp.state_dict()}
         if self.training:
-            exp_state = {
-                'buffer': self.buffer.state_dict()
-            }
+            exp_state = {"buffer": self.buffer.state_dict()}
             state_dict.update(exp_state)
         torch.save(state_dict, path)
 
-    def load(self,
-             path: str
-             ):
-        '''Restores model and experiment given path.
+    def load(self, path: str):
+        """Restores model and experiment given path.
 
         Args:
             path (str): The path where the model params/experiment state are saved.
-        '''
+        """
         state = torch.load(path)
 
         # Restore params
-        self.mlp.load_state_dict(state['agent'])
+        self.mlp.load_state_dict(state["agent"])
 
         # Restore experiment state
         if self.training:
-            self.buffer.load_state_dict(state['buffer'])
+            self.buffer.load_state_dict(state["buffer"])
 
-    def learn(self,
-              env=None,
-              **kwargs
-              ):
-        '''Learn the error in the Lie derivative from multiple experiments.
+    def learn(self, env=None, **kwargs):
+        """Learn the error in the Lie derivative from multiple experiments.
 
         Args:
             env (BenchmarkEnv): The environment to be used for training.
-        '''
+        """
         if env is None:
             env = self.env
 
@@ -336,48 +352,60 @@ class CBF_NN(CBF):
             lie_derivative_est = np.zeros((self.max_num_steps, 1))
 
             while counter < self.max_num_steps:
-                print('Step: ', env.pyb_step_counter // self.step_size)
+                print("Step: ", env.pyb_step_counter // self.step_size)
 
                 # Determine safe action
                 if self.uncertified_controller is None:
                     uncertified_action = self.env.action_space.sample()
                 else:
-                    uncertified_action = self.uncertified_controller.select_action(obs, info)
+                    uncertified_action = self.uncertified_controller.select_action(
+                        obs, info
+                    )
                 safe_action, _ = self.certify_action(obs, uncertified_action)
 
                 # Blend the safe and uncertified action
-                blended_input = (1 - input_blending_weight[i]) * uncertified_action + input_blending_weight[i] * safe_action
+                blended_input = (
+                    1 - input_blending_weight[i]
+                ) * uncertified_action + input_blending_weight[i] * safe_action
 
                 # Step the system
                 obs, _, _, info = env.step(blended_input)
-                print(f'obs: {obs}')
-                print(f'action: {safe_action}')
+                print(f"obs: {obs}")
+                print(f"action: {safe_action}")
 
                 # Collect data
                 states[counter, :] = obs
                 inputs[counter, :] = blended_input
-                barrier_values[counter, :] = self.cbf(X=obs)['cbf']
-                lie_derivative_values[counter, :] = self.lie_derivative(X=obs, u=blended_input)['LfV']
+                barrier_values[counter, :] = self.cbf(X=obs)["cbf"]
+                lie_derivative_values[counter, :] = self.lie_derivative(
+                    X=obs, u=blended_input
+                )["LfV"]
 
                 # Determine the estimated Lie derivative
                 a, b = self.extract_a_b(current_state=obs)
-                lie_derivative_est[counter, :] = lie_derivative_values[counter, :] + np.dot(a.T, blended_input) + b
+                lie_derivative_est[counter, :] = (
+                    lie_derivative_values[counter, :] + np.dot(a.T, blended_input) + b
+                )
 
                 counter += 1
 
-            print('Num time steps:', len(inputs))
-            print('Certified control input weight:', input_blending_weight[i])
+            print("Num time steps:", len(inputs))
+            print("Certified control input weight:", input_blending_weight[i])
 
             # Numerical time differentiation (symmetric) of barrier function:
-            barrier_dot_approx = (barrier_values[2:] - barrier_values[:-2]) / (2 * 1 / env.CTRL_FREQ)
+            barrier_dot_approx = (barrier_values[2:] - barrier_values[:-2]) / (
+                2 * 1 / env.CTRL_FREQ
+            )
 
             # Add data to buffer
-            self.buffer.push({
-                'state': states[1:-1, :],
-                'act': inputs[1:-1, :],
-                'barrier_dot': lie_derivative_values[1:-1, :],
-                'barrier_dot_approx': barrier_dot_approx
-            })
+            self.buffer.push(
+                {
+                    "state": states[1:-1, :],
+                    "act": inputs[1:-1, :],
+                    "barrier_dot": lie_derivative_values[1:-1, :],
+                    "barrier_dot_approx": barrier_dot_approx,
+                }
+            )
 
             # Update neural network parameters
             for _ in range(self.train_iterations):

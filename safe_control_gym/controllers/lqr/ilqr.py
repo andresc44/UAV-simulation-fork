@@ -1,35 +1,36 @@
-'''Linear Quadratic Regulator (LQR)
+"""Linear Quadratic Regulator (LQR)
 
 [1] https://studywolf.wordpress.com/2016/02/03/the-iterative-linear-quadratic-regulator-method/
 [2] https://arxiv.org/pdf/1708.09342.pdf
-'''
+"""
 
 import numpy as np
 from termcolor import colored
 
 from safe_control_gym.controllers.base_controller import BaseController
-from safe_control_gym.controllers.lqr.lqr_utils import (compute_lqr_gain, discretize_linear_system,
-                                                        get_cost_weight_matrix)
+from safe_control_gym.controllers.lqr.lqr_utils import (
+    compute_lqr_gain, discretize_linear_system, get_cost_weight_matrix)
 from safe_control_gym.envs.benchmark_env import Task
 
 
 class iLQR(BaseController):
-    '''Linear quadratic regulator.'''
+    """Linear quadratic regulator."""
 
     def __init__(
-            self,
-            env_func,
-            # Model args
-            q_lqr: list = None,
-            r_lqr: list = None,
-            discrete_dynamics: bool = True,
-            # iLQR args
-            max_iterations: int = 15,
-            lamb_factor: float = 10,
-            lamb_max: float = 1000,
-            epsilon: float = 0.01,
-            **kwargs):
-        '''Creates task and controller.
+        self,
+        env_func,
+        # Model args
+        q_lqr: list = None,
+        r_lqr: list = None,
+        discrete_dynamics: bool = True,
+        # iLQR args
+        max_iterations: int = 15,
+        lamb_factor: float = 10,
+        lamb_max: float = 1000,
+        epsilon: float = 0.01,
+        **kwargs,
+    ):
+        """Creates task and controller.
 
         Args:
             env_func (Callable): Function to instantiate task/environment.
@@ -40,7 +41,7 @@ class iLQR(BaseController):
             lamb_factor (float): The amount for which to increase lambda when training fails.
             lamb_max (float): The maximum lambda allowed.
             epsilon (float): The convergence tolerance.
-        '''
+        """
 
         super().__init__(env_func, **kwargs)
 
@@ -63,8 +64,14 @@ class iLQR(BaseController):
         self.R = get_cost_weight_matrix(self.r_lqr, self.model.nu)
         self.env.set_cost_function_param(self.Q, self.R)
 
-        self.gain = compute_lqr_gain(self.model, self.model.X_EQ, self.model.U_EQ,
-                                     self.Q, self.R, self.discrete_dynamics)
+        self.gain = compute_lqr_gain(
+            self.model,
+            self.model.X_EQ,
+            self.model.U_EQ,
+            self.Q,
+            self.R,
+            self.discrete_dynamics,
+        )
 
         # Control stepsize.
         self.stepsize = self.model.dt
@@ -76,15 +83,15 @@ class iLQR(BaseController):
         self.reset()
 
     def close(self):
-        '''Cleans up resources.'''
+        """Cleans up resources."""
         self.env.close()
 
     def learn(self, env=None, **kwargs):
-        '''Run iLQR to iteratively update policy for each time step.
+        """Run iLQR to iteratively update policy for each time step.
 
         Args:
             env (BenchmarkEnv): The environment to be used for training.
-        '''
+        """
 
         if env is None:
             env = self.env
@@ -96,7 +103,7 @@ class iLQR(BaseController):
         self.update_unstable = False
 
         # Initialize previous cost
-        self.previous_total_cost = -float('inf')
+        self.previous_total_cost = -float("inf")
 
         # Loop through iLQR iterations
         while self.ite_counter < self.max_iterations:
@@ -105,11 +112,24 @@ class iLQR(BaseController):
             # Save data and update policy if iteration is finished.
             self.state_stack = np.vstack((self.state_stack, self.final_obs))
 
-            print(colored(f'Iteration: {self.ite_counter}, Cost: {self.total_cost}', 'green'))
-            print(colored('--------------------------', 'green'))
+            print(
+                colored(
+                    f"Iteration: {self.ite_counter}, Cost: {self.total_cost}", "green"
+                )
+            )
+            print(colored("--------------------------", "green"))
 
-            if self.ite_counter == 0 and env.done_on_out_of_bound and self.final_info['out_of_bounds']:
-                print(colored('[ERROR] The initial policy might be unstable. Break from iLQR updates.', 'red'))
+            if (
+                self.ite_counter == 0
+                and env.done_on_out_of_bound
+                and self.final_info["out_of_bounds"]
+            ):
+                print(
+                    colored(
+                        "[ERROR] The initial policy might be unstable. Break from iLQR updates.",
+                        "red",
+                    )
+                )
                 break
 
             # Maximum episode length.
@@ -133,10 +153,12 @@ class iLQR(BaseController):
                 # If cost is increased, increase lambda
                 self.lamb *= self.lamb_factor
 
-                print(f'Cost increased by {-delta_cost}.')
-                print('Set feedforward term and controller gain to that from the previous iteration.')
-                print(f'Increased lambda to {self.lamb}.')
-                print(f'Current policy is from iteration {self.best_iteration}.')
+                print(f"Cost increased by {-delta_cost}.")
+                print(
+                    "Set feedforward term and controller gain to that from the previous iteration."
+                )
+                print(f"Increased lambda to {self.lamb}.")
+                print(f"Current policy is from iteration {self.best_iteration}.")
 
                 # Reset feedforward term and controller gain to that from
                 # the previous iteration.
@@ -148,7 +170,7 @@ class iLQR(BaseController):
 
                 # Break if maximum lambda is reached.
                 if self.lamb > self.lamb_max:
-                    print(colored('Maximum lambda reached.', 'red'))
+                    print(colored("Maximum lambda reached.", "red"))
                     self.lamb = self.lamb_max
 
                 # Reset update_unstable flag to False.
@@ -163,7 +185,12 @@ class iLQR(BaseController):
                 # Check consecutive cost increment (cost decrement).
                 if abs(delta_cost) < self.epsilon and self.prev_ite_improved:
                     # Cost converged.
-                    print(colored(f'iLQR cost converged with a tolerance of {self.epsilon}.', 'yellow'))
+                    print(
+                        colored(
+                            f"iLQR cost converged with a tolerance of {self.epsilon}.",
+                            "yellow",
+                        )
+                    )
                     break
 
                 # Set improved flag to True.
@@ -175,11 +202,11 @@ class iLQR(BaseController):
             self.ite_counter += 1
 
     def update_policy(self, env):
-        '''Updates policy.
+        """Updates policy.
 
         Args:
             env (BenchmarkEnv): The environment to be used for training.
-        '''
+        """
 
         # Get symbolic loss function which also contains the necessary Jacobian
         # and Hessian of the loss w.r.t. state and input.
@@ -193,15 +220,12 @@ class iLQR(BaseController):
             x_goal = self.env.X_GOAL
         elif env.TASK == Task.TRAJ_TRACKING:
             x_goal = self.env.X_GOAL[-1]
-        loss_k = loss(x=state_k,
-                      u=input_k,
-                      Xr=x_goal,
-                      Ur=self.model.U_EQ,
-                      Q=self.Q,
-                      R=self.R)
-        s = loss_k['l'].toarray()
-        Sv = loss_k['l_x'].toarray().transpose()
-        Sm = loss_k['l_xx'].toarray().transpose()
+        loss_k = loss(
+            x=state_k, u=input_k, Xr=x_goal, Ur=self.model.U_EQ, Q=self.Q, R=self.R
+        )
+        s = loss_k["l"].toarray()
+        Sv = loss_k["l_x"].toarray().transpose()
+        Sm = loss_k["l_xx"].toarray().transpose()
 
         # Backward pass.
         for k in reversed(range(self.num_steps)):
@@ -220,20 +244,17 @@ class iLQR(BaseController):
                 x_goal = self.env.X_GOAL
             elif env.TASK == Task.TRAJ_TRACKING:
                 x_goal = self.env.X_GOAL[k]
-            loss_k = loss(x=state_k,
-                          u=input_k,
-                          Xr=x_goal,
-                          Ur=self.model.U_EQ,
-                          Q=self.Q,
-                          R=self.R)
+            loss_k = loss(
+                x=state_k, u=input_k, Xr=x_goal, Ur=self.model.U_EQ, Q=self.Q, R=self.R
+            )
 
             # Quadratic approximation of cost.
-            q = loss_k['l'].toarray()  # l
-            Qv = loss_k['l_x'].toarray().transpose()  # dl/dx
-            Qm = loss_k['l_xx'].toarray().transpose()  # ddl/dxdx
-            Rv = loss_k['l_u'].toarray().transpose()  # dl/du
-            Rm = loss_k['l_uu'].toarray().transpose()  # ddl/dudu
-            Pm = loss_k['l_xu'].toarray().transpose()  # ddl/dudx
+            q = loss_k["l"].toarray()  # l
+            Qv = loss_k["l_x"].toarray().transpose()  # dl/dx
+            Qm = loss_k["l_xx"].toarray().transpose()  # ddl/dxdx
+            Rv = loss_k["l_u"].toarray().transpose()  # dl/du
+            Rm = loss_k["l_uu"].toarray().transpose()  # ddl/dudu
+            Pm = loss_k["l_xu"].toarray().transpose()  # ddl/dudx
 
             # Control dependent terms of cost function.
             g = Rv + Bd_k.transpose().dot(Sv)
@@ -258,19 +279,31 @@ class iLQR(BaseController):
                 self.gains_fb[k] = K
 
                 # Update s variables for time step k.
-                Sm = Qm + Ad_k.transpose().dot(Sm.dot(Ad_k)) + \
-                    K.transpose().dot(H.dot(K)) + \
-                    K.transpose().dot(G) + G.transpose().dot(K)
-                Sv = Qv + Ad_k.transpose().dot(Sv) + \
-                    K.transpose().dot(H.dot(duff)) + K.transpose().dot(g) + \
-                    G.transpose().dot(duff)
-                s = q + s + 0.5 * duff.transpose().dot(H.dot(duff)) + \
-                    duff.transpose().dot(g)
+                Sm = (
+                    Qm
+                    + Ad_k.transpose().dot(Sm.dot(Ad_k))
+                    + K.transpose().dot(H.dot(K))
+                    + K.transpose().dot(G)
+                    + G.transpose().dot(K)
+                )
+                Sv = (
+                    Qv
+                    + Ad_k.transpose().dot(Sv)
+                    + K.transpose().dot(H.dot(duff))
+                    + K.transpose().dot(g)
+                    + G.transpose().dot(duff)
+                )
+                s = (
+                    q
+                    + s
+                    + 0.5 * duff.transpose().dot(H.dot(duff))
+                    + duff.transpose().dot(g)
+                )
             else:
                 self.update_unstable = True
 
     def select_action(self, obs, info=None, training=False):
-        '''Determine the action to take at the current timestep.
+        """Determine the action to take at the current timestep.
 
         Args:
             obs (ndarray): The observation at this timestep.
@@ -278,7 +311,7 @@ class iLQR(BaseController):
 
         Returns:
             action (ndarray): The action chosen by the controller.
-        '''
+        """
 
         step = self.extract_step(info)
 
@@ -290,8 +323,14 @@ class iLQR(BaseController):
                     self.gains_fb = gains_fb.reshape((1, self.model.nu, self.model.nx))
                     self.input_ff = input_ff.reshape(self.model.nu, 1)
                 else:
-                    self.gains_fb = np.append(self.gains_fb, gains_fb.reshape((1, self.model.nu, self.model.nx)), axis=0)
-                    self.input_ff = np.append(self.input_ff, input_ff.reshape(self.model.nu, 1), axis=1)
+                    self.gains_fb = np.append(
+                        self.gains_fb,
+                        gains_fb.reshape((1, self.model.nu, self.model.nx)),
+                        axis=0,
+                    )
+                    self.input_ff = np.append(
+                        self.input_ff, input_ff.reshape(self.model.nu, 1), axis=1
+                    )
             else:
                 action = self.gains_fb[step].dot(obs) + self.input_ff[:, step]
         elif self.gains_fb_best is not None:
@@ -302,7 +341,7 @@ class iLQR(BaseController):
         return action
 
     def calculate_lqr_action(self, obs, step):
-        '''Compute gain for the first iteration.
+        """Compute gain for the first iteration.
            action = -self.gain @ (x - self.x_goal) + self.model.U_EQ
 
         Args:
@@ -313,7 +352,7 @@ class iLQR(BaseController):
             action (ndarray): The calculated action.
             gains_fb (ndarray): The feedback gains.
             input_ff (ndarray): The feedforward term.
-        '''
+        """
         if self.env.TASK == Task.STABILIZATION:
             gains_fb = -self.gain
             input_ff = self.gain @ self.env.X_GOAL + self.model.U_EQ
@@ -327,18 +366,18 @@ class iLQR(BaseController):
         return action, gains_fb, input_ff
 
     def reset(self):
-        '''Prepares for evaluation.'''
+        """Prepares for evaluation."""
         self.env.reset()
         self.ite_counter = 0
 
     def run(self, env=None, max_steps=500, training=True):
-        '''Runs evaluation with current policy.
+        """Runs evaluation with current policy.
 
         Args:
             env (BenchmarkEnv): Environment for the task.
             max_steps (int): Maximum number of steps.
             training (bool): Whether the algorithm is training or evaluating.
-        '''
+        """
 
         if env is None:
             env = self.env
@@ -366,7 +405,7 @@ class iLQR(BaseController):
             total_cost -= cost
 
             if done:
-                print(f'SUCCESS: Reached goal on step {step}. Terminating...')
+                print(f"SUCCESS: Reached goal on step {step}. Terminating...")
                 break
 
         self.final_obs = obs
