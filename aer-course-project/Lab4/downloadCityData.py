@@ -2,7 +2,7 @@ import os
 import zipfile
 import gdown
 
-_TARGET_DIR = os.path.expanduser('.') #Directory to store data
+_TARGET_DIR = os.path.expanduser('..') #Directory to store data
 _FILE_ID= "1368NySV1bWwlOhp525TD0HJEvbCG0WZr" #Use Id for zip file on drive, ensure "Anyone with link can access"
 
 
