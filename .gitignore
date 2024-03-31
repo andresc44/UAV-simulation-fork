@@ -150,10 +150,10 @@ dmypy.json
 .idea/
 aer-course-project/lab3/image_folder/processed_frames/
 aer-course-project/lab3/image_folder/
-aer-course-project/lab4/CityData/
 aer-course-project/edit_this_original.py
 aer-course-project/PlanningAlgorithm/
 
 #lab4 CityData dir
 CityData/
 video.avi
+video_right_inliers.avi
