@@ -33,6 +33,7 @@ pytest = "^8.1.1"
 pre-commit = "^3.7.0"
 polytope = "^0.2.5"
 pytope = "^0.0.4"
+gdown = "^5.1.0"
 
 
 [tool.poetry.dev-dependencies]
