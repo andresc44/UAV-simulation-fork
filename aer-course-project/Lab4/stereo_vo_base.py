@@ -233,7 +233,7 @@ def feature_tracking(prev_kp, cur_kp, img, color=(0, 255, 0), alpha=0.5):
 def compute_max_iter_ransac(certainty):
     """
     Use the RANSAC eqn to determine a max number of iterations to perform to gain a degree of certainty in
-    inliner detection. Max_iter = frac{log(1 - p)}{log(1 - (1-e)^s)}, where p is the certainty, e
+    inlier detection. Max_iter = frac{log(1 - p)}{log(1 - (1-e)^s)}, where p is the certainty, e
     is the estimated proportion of outliers, and s is the number of samples needed to estimate the model.
 
     Parameters:
@@ -274,7 +274,7 @@ def calculate_euclid(p_cur, p_transformed):
 
 def filter_inlines_ransac(p_before, p_cur, max_iter):
     """
-    Apply RANSAC inliner filtering to the given data to only preserve the features that are inliners.
+    Apply RANSAC inlier filtering to the given data to only preserve the features that are inliers.
 
     Parameters:
     p_before    : numpy.ndarray   size: (number_of_pairs, 3)
@@ -287,25 +287,25 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
     Returns:
     p_a             : numpy.ndarray   size: (M, 3)
     p_b             : numpy.ndarray   size: (M, 3)
-    inliner_indices  : numpy.ndarray   size: (M, 1);
+    inlier_indices  : numpy.ndarray   size: (M, 1);
 
     Info:
-    number_of_pairs >= M. The returned arrays are the 3D point clouds of the inliner features for the previous and current
-    frames, respectively. The elements of inliner_indices represent the indices of number_of_pairs that were considered inliners.
+    number_of_pairs >= M. The returned arrays are the 3D point clouds of the inlier features for the previous and current
+    frames, respectively. The elements of inlier_indices represent the indices of number_of_pairs that were considered inliers.
     """
 
-    max_inliners = -1
+    max_inliers = -1
     top_t = np.zeros((4, 4))
-    inliner_threshold_euclidean = (
+    inlier_threshold_euclidean = (
         10  # metres CONSIDER REVISING !!!!!!!!!!!!!!!!!!!!!!!!!
     )
-    high_inliner_perc_threshold = 0.95  # more than the high_inliner_perc_threshold percent of points are inliners, can break RANSAC
+    high_inlier_perc_threshold = 0.95  # more than the high_inlier_perc_threshold percent of points are inliers, can break RANSAC
     number_of_pairs = p_before.shape[0]
 
     def inlines_from_t(transform_matrix, pairs_before, pairs_current):
         """
         Given a certain transform transform_matrix, apply that transform to the previous frame point cloud and determine
-        the inliners by comparing the Euclidean distance to the current frame point cloud.
+        the inliers by comparing the Euclidean distance to the current frame point cloud.
 
         Parameters:
         transform_matrix           : numpy.ndarray size: (4, 4)
@@ -315,10 +315,10 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
         The np arrays are each the unfiltered 3D point clouds of the features from the previous and current frame.
 
         Returns:
-        inliners_cnt     : int           value <= number_of_pairs
-        inliner_indices  : numpy.ndarray size: (number_of_inliners, 1) and each element is value from 0-> number_of_pairs-1
+        inliers_cnt     : int           value <= number_of_pairs
+        inlier_indices  : numpy.ndarray size: (number_of_inliers, 1) and each element is value from 0-> number_of_pairs-1
 
-        Returns the number of inliners found, as well as the indices of those inliners w.r.t. The original
+        Returns the number of inliers found, as well as the indices of those inliers w.r.t. The original
         number_of_pairs features.
         """
         p_before_transform = np.hstack(
@@ -331,11 +331,11 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
         p_transformed = p_after_transform[:3, :].T  # number_of_pairs x 3 X, Y, Z
 
         dist = calculate_euclid(pairs_current, p_transformed)  # number_of_pairs,
-        mask = dist < inliner_threshold_euclidean  # Boolean len number_of_pairs
-        this_inliner_indices = np.where(mask)[0]  # M,
-        this_number_of_inliners = np.count_nonzero(mask)  # int
+        mask = dist < inlier_threshold_euclidean  # Boolean len number_of_pairs
+        this_inlier_indices = np.where(mask)[0]  # M,
+        this_number_of_inliers = np.count_nonzero(mask)  # int
 
-        return this_number_of_inliners, this_inliner_indices
+        return this_number_of_inliers, this_inlier_indices
 
     def one_iter_ransac(pairs_before, pairs_current):
         """
@@ -348,9 +348,9 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
 
         Returns:
         temp_transform_matrix           : numpy.ndarray     size: (4, 4)
-        number_of_inliners     : int           value <= number_of_pairs
+        number_of_inliers     : int           value <= number_of_pairs
 
-        Returns the transform applied to the previous frame, as well as the number of inliners found
+        Returns the transform applied to the previous frame, as well as the number of inliers found
         as a result of the transformation.
         """
         rand_idx = np.random.choice(
@@ -361,25 +361,25 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
         this_temp_transform_matrix = compute_transformation_matrix(
             prev_test_points, cur_test_points
         )
-        this_number_of_inliners, _ = inlines_from_t(
+        this_number_of_inliers, _ = inlines_from_t(
             this_temp_transform_matrix, pairs_before, pairs_current
         )
-        return this_temp_transform_matrix, this_number_of_inliners
+        return this_temp_transform_matrix, this_number_of_inliers
 
     for _ in range(max_iter):
-        temp_transform_matrix, number_of_inliners = one_iter_ransac(p_before, p_cur)
-        if number_of_inliners > max_inliners:
-            max_inliners = number_of_inliners
+        temp_transform_matrix, number_of_inliers = one_iter_ransac(p_before, p_cur)
+        if number_of_inliers > max_inliers:
+            max_inliers = number_of_inliers
             top_t = temp_transform_matrix
-            if (number_of_inliners / number_of_pairs) > high_inliner_perc_threshold:
+            if (number_of_inliers / number_of_pairs) > high_inlier_perc_threshold:
                 break
 
-    _, inliner_indices = inlines_from_t(top_t, p_before, p_cur)  # repeat best transform
+    _, inlier_indices = inlines_from_t(top_t, p_before, p_cur)  # repeat best transform
 
-    p_a = p_before[inliner_indices]
-    p_b = p_cur[inliner_indices]
+    p_a = p_before[inlier_indices]
+    p_b = p_cur[inlier_indices]
 
-    return p_a, p_b, inliner_indices
+    return p_a, p_b, inlier_indices
 
 
 class VisualOdometry:
@@ -398,7 +398,7 @@ class VisualOdometry:
         self.des_r_prev = None  # previous descriptor key points (right)
         self.detector = cv.xfeatures2d.SIFT_create()  # using sift for detection
         self.feature_color = (255, 191, 0)
-        self.inliner_color = (32, 165, 218)
+        self.inlier_color = (32, 165, 218)
 
     def feature_detection(self, img):
         kp, des = self.detector.detectAndCompute(img, None)
@@ -408,8 +408,8 @@ class VisualOdometry:
     # POINT CLOUD ALIGNMENT ###################################
 
     # RANSAC ##################################################
-    # TODO:  - Determine good inliner_threshold_euclidean value in filter_inliners_RASAC fxn
-    #       - Determine good high_inliner_perc_threshold value in compute_max_iter_RANSAC fxn
+    # TODO:  - Determine good inlier_threshold_euclidean value in filter_inliers_RASAC fxn
+    #       - Determine good high_inlier_perc_threshold value in compute_max_iter_RANSAC fxn
     #       - Determine good perc_outlier value in compute_max_iter_RANSAC fxn
     #       - Debug
 
@@ -502,8 +502,8 @@ class VisualOdometry:
         # ------------- start your code here -------------- #
 
         # 1. Convert to 3d cloud points. 2 sets before: [x, y, z], and current: [x, y, z]
-        # 2. Iteratively run RANSAC to get inliners by fitting rotation_matrix and r to 3 points
-        # 3. Choose a version that had the most inliners
+        # 2. Iteratively run RANSAC to get inliers by fitting rotation_matrix and r to 3 points
+        # 3. Choose a version that had the most inliers
         # 4. Use M features for cloud alignment
         p_before, p_cur = self.convert_features_to_3d(
             features_corr
@@ -514,7 +514,7 @@ class VisualOdometry:
             p_before, p_cur, max_iter
         )  # M x 3 arrays
 
-        # TODO: Compute rotation_matrix and r from p_a and p_b which are inliner points
+        # TODO: Compute rotation_matrix and r from p_a and p_b which are inlier points
         transform_matrix = compute_transformation_matrix(p_a, p_b)
         rotation_matrix = transform_matrix[:3, :3]
         r = transform_matrix[:3, 3]
@@ -564,9 +564,9 @@ class VisualOdometry:
         # lab4 assignment: compute the vehicle pose
         [self.C, self.r, f_r_prev, f_r_cur] = self.pose_estimation(features_corr)
 
-        # draw the feature (inliners) tracking on the right img
+        # draw the feature (inliers) tracking on the right img
         img_r_tracking = feature_tracking(
-            f_r_prev, f_r_cur, img_right, color=self.inliner_color, alpha=1.0
+            f_r_prev, f_r_cur, img_right, color=self.inlier_color, alpha=1.0
         )
 
         # update the key point features on both images
@@ -605,9 +605,9 @@ class VisualOdometry:
         # lab4 assignment: compute the vehicle pose
         [self.C, self.r, f_r_prev, f_r_cur] = self.pose_estimation(features_corr)
 
-        # draw the feature (inliners) tracking on the right img
+        # draw the feature (inliers) tracking on the right img
         img_r_tracking = feature_tracking(
-            f_r_prev, f_r_cur, img_right, color=self.inliner_color, alpha=1.0
+            f_r_prev, f_r_cur, img_right, color=self.inlier_color, alpha=1.0
         )
 
         # update the key point features on both images

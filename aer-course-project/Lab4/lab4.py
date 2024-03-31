@@ -124,6 +124,9 @@ def main():
     video = cv.VideoWriter(
         "./video.avi", fourcc, 5.0, (1242, 775)
     )  # 375*2 + 25 (margin)
+    video_right_inliers = cv.VideoWriter(
+        "./video.avi", fourcc, 5.0, (1242, 775)
+    )  # 375*2 + 25 (margin)
 
     for img_id in range(sequence_num):
         img_left = cv.imread(
@@ -156,13 +159,15 @@ def main():
             np.linalg.inv(transform_matrix_hist[img_id])
         )
 
-        cv.imshow("Visual Odometry", vertical_frame)
+        # cv.imshow("Visual Odometry", vertical_frame)
         video.write(vertical_frame)
+        video_right_inliers.write(frame_right)
         if cv.waitKey(10) & 0xFF == ord("q"):
             break
 
     print("VO ends\n")
     video.release()
+    video_right_inliers.release()
     cv.destroyAllWindows()
 
     # save the estimated transformation matrix
