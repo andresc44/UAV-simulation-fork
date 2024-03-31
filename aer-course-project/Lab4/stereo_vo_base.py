@@ -9,9 +9,9 @@ https://carre.utoronto.ca/aer1217
 import math
 
 import cv2 as cv
-import numpy as np
-from scipy.spatial.transform import Rotation as scipy_rotation
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.spatial.transform import Rotation as ScipyRotation
 
 STAGE_FIRST_FRAME = 0
 STAGE_SECOND_FRAME = 1
@@ -105,10 +105,21 @@ def estimate_pose(corresponding_pair_source, corresponding_pair_target):
     # 1. Compute the centroid of the point clouds without weights
     source_centroid = np.mean(corresponding_pair_source, axis=0)
     target_centroid = np.mean(corresponding_pair_target, axis=0)
-    corresponding_pair_source = corresponding_pair_source-source_centroid
-    corresponding_pair_target = corresponding_pair_target-target_centroid
+    corresponding_pair_source = corresponding_pair_source - source_centroid
+    corresponding_pair_target = corresponding_pair_target - target_centroid
     # 2. Compute the outer product (covariance matrix)
-    covariance_matrix = np.sum(np.array([np.matmul(corresponding_pair_source[i].reshape(3, 1), corresponding_pair_target[i].reshape(1, 3)) for i in range(len(corresponding_pair_source))]), axis=0)
+    covariance_matrix = np.sum(
+        np.array(
+            [
+                np.matmul(
+                    corresponding_pair_source[i].reshape(3, 1),
+                    corresponding_pair_target[i].reshape(1, 3),
+                )
+                for i in range(len(corresponding_pair_source))
+            ]
+        ),
+        axis=0,
+    )
 
     # 3. Using Singular Value Decomposition (SVD)
     u, s, vt = np.linalg.svd(covariance_matrix)
@@ -117,34 +128,55 @@ def estimate_pose(corresponding_pair_source, corresponding_pair_target):
     # 4. Compose final rotation and translation
     sign_identity = np.eye(3)
     sign_identity[2, 2] = np.sign(np.linalg.det(u) * np.linalg.det(vt))
-    rotation_matrix_target_source = np.matmul(v, np.matmul(sign_identity, np.transpose(u)))
-    translation_vector_target_source_target = -np.matmul(np.transpose(rotation_matrix_target_source), target_centroid) + source_centroid
+    rotation_matrix_target_source = np.matmul(
+        v, np.matmul(sign_identity, np.transpose(u))
+    )
+    translation_vector_target_source_target = (
+        -np.matmul(np.transpose(rotation_matrix_target_source), target_centroid)
+        + source_centroid
+    )
     translation_matrix_target_source = np.identity(4)
     translation_matrix_target_source[0:3, 0:3] = rotation_matrix_target_source
-    translation_matrix_target_source[0:3, 3] = -np.matmul(rotation_matrix_target_source, translation_vector_target_source_target)
+    translation_matrix_target_source[0:3, 3] = -np.matmul(
+        rotation_matrix_target_source, translation_vector_target_source_target
+    )
 
     return translation_matrix_target_source
 
 
 def nearest_search(source_point_cloud, target_point_cloud):
-    # Using brute force search, we will compute the Euclidean distance between each two pairs, then take the minimum distance for each source points
+    # Using brute force search, we will compute the Euclidean distance between each two pairs, then take the minimum distance for each source point
     corresponding_pair_source = source_point_cloud
     corresponding_pair_target = np.zeros(corresponding_pair_source.shape)
     euclidean_distance_summation = 0
     for source_index in range(len(source_point_cloud)):
-        min_euclidean_distance = np.linalg.norm(source_point_cloud[source_index] - target_point_cloud[0])
+        min_euclidean_distance = np.linalg.norm(
+            source_point_cloud[source_index] - target_point_cloud[0]
+        )
         for target_index in range(len(target_point_cloud)):
-            euclidean_distance = np.linalg.norm(source_point_cloud[source_index] - target_point_cloud[target_index])
+            euclidean_distance = np.linalg.norm(
+                source_point_cloud[source_index] - target_point_cloud[target_index]
+            )
             if euclidean_distance <= min_euclidean_distance:
-                corresponding_pair_target[source_index] = target_point_cloud[target_index]
+                corresponding_pair_target[source_index] = target_point_cloud[
+                    target_index
+                ]
                 min_euclidean_distance = euclidean_distance
         euclidean_distance_summation += min_euclidean_distance
 
-    mean_nearest_euclidean_distance = euclidean_distance_summation/len(source_point_cloud)
-    return corresponding_pair_source, corresponding_pair_target, mean_nearest_euclidean_distance
+    mean_nearest_euclidean_distance = euclidean_distance_summation / len(
+        source_point_cloud
+    )
+    return (
+        corresponding_pair_source,
+        corresponding_pair_target,
+        mean_nearest_euclidean_distance,
+    )
 
 
-def compute_transformation_matrix(source_point_cloud, target_point_cloud, number_of_iterations=5):
+def compute_transformation_matrix(
+    source_point_cloud, target_point_cloud, number_of_iterations=5
+):
     """
     ...
 
@@ -169,52 +201,40 @@ def compute_transformation_matrix(source_point_cloud, target_point_cloud, number
     iteration_mean_euclidean_distance = [0] * number_of_iterations
 
     for i in range(number_of_iterations):
-        corresponding_pair_source, corresponding_pair_target, iteration_mean_euclidean_distance[i] = nearest_search(updated_point_cloud, target_point_cloud)
-        pose_translation_matrix = estimate_pose(corresponding_pair_source, corresponding_pair_target)
-        updated_point_cloud_reshaped = np.vstack([np.transpose(updated_point_cloud), np.ones(len(updated_point_cloud))])
-        updated_point_cloud = np.matmul(pose_translation_matrix, updated_point_cloud_reshaped)
+        (
+            corresponding_pair_source,
+            corresponding_pair_target,
+            iteration_mean_euclidean_distance[i],
+        ) = nearest_search(updated_point_cloud, target_point_cloud)
+        pose_translation_matrix = estimate_pose(
+            corresponding_pair_source, corresponding_pair_target
+        )
+        updated_point_cloud_reshaped = np.vstack(
+            [np.transpose(updated_point_cloud), np.ones(len(updated_point_cloud))]
+        )
+        updated_point_cloud = np.matmul(
+            pose_translation_matrix, updated_point_cloud_reshaped
+        )
         updated_point_cloud = np.transpose(updated_point_cloud[0:3, :])
         pose = np.matmul(pose_translation_matrix, pose)
-        scipy_rotation_matrix = scipy_rotation.from_matrix(pose_translation_matrix[0:3, 0:3])
-        iteration_x_translation[i], iteration_y_translation[i], iteration_z_translation[i] = pose_translation_matrix[0:3, 3]
-        iteration_z_euler[i], iteration_y_euler[i], iteration_x_euler[i] = scipy_rotation_matrix.as_euler("zyx", degrees=True)
-        print(f'finished alignment for iteration {i}, with mean Euclidean distance of {iteration_mean_euclidean_distance[i]}')
+        scipy_rotation_matrix = ScipyRotation.from_matrix(
+            pose_translation_matrix[0:3, 0:3]
+        )
+        (
+            iteration_x_translation[i],
+            iteration_y_translation[i],
+            iteration_z_translation[i],
+        ) = pose_translation_matrix[0:3, 3]
+        iteration_z_euler[i], iteration_y_euler[i], iteration_x_euler[i] = (
+            scipy_rotation_matrix.as_euler("zyx", degrees=True)
+        )
+        print(
+            f"finished alignment for iteration {i}, with mean Euclidean distance of {iteration_mean_euclidean_distance[i]}"
+        )
 
     return pose
 
 
-def plot_3d_pose(pose, label, output_dir, plot_iterations=True):
-    a=1
-    # plt.figure(figsize=(16, 9))
-    # plt.clf()
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_mean_euclidean_distance, label='Mean Euclidean Distance')
-    # plt.xlabel('Number of Iterations')
-    # plt.ylabel('ICP Loss (Mean Euclidean Distance)')
-    # plt.title(f'Average Euclidean Distance Decay Graph for ICP - ' + label)
-    # plt.grid()
-    # plt.savefig(output_dir + '/loss_function_' + label + '.png')
-    # plt.figure(figsize=(16, 9))
-    # plt.clf()
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_x_translation, label='Translation X')
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_y_translation, label='Translation Y')
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_z_translation, label='Translation Z')
-    # plt.xlabel('Number of Iterations')
-    # plt.ylabel('3D Translation (mm)')
-    # plt.title('Translation change per iteration - ' + label)
-    # plt.grid()
-    # plt.legend()
-    # plt.savefig(output_dir + '/iteration_translation_' + label + '.png')
-    # plt.figure(figsize=(16, 9))
-    # plt.clf()
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_x_euler, label='Euler X')
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_y_euler, label='Euler Y')
-    # plt.plot(np.array(list(range(number_of_iterations))), iteration_z_euler, label='Euler Z')
-    # plt.xlabel('Number of Iterations')
-    # plt.ylabel('3D Rotation - Euler ZYX (degrees)')
-    # plt.title('Rotation change per iteration - ' + label)
-    # plt.grid()
-    # plt.legend()
-    # plt.savefig(output_dir + '/iteration_rotation_' + label + '.png')
 def feature_tracking(prev_kp, cur_kp, img, color=(0, 255, 0), alpha=0.5):
     img = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
     cover = np.zeros_like(img)
@@ -272,7 +292,7 @@ def calculate_euclid(p_cur, p_transformed):
     return dist
 
 
-def filter_inlines_ransac(p_before, p_cur, max_iter):
+def filter_inliers_ransac(p_before, p_cur, max_iter):
     """
     Apply RANSAC inlier filtering to the given data to only preserve the features that are inliers.
 
@@ -302,7 +322,7 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
     high_inlier_perc_threshold = 0.95  # more than the high_inlier_perc_threshold percent of points are inliers, can break RANSAC
     number_of_pairs = p_before.shape[0]
 
-    def inlines_from_t(transform_matrix, pairs_before, pairs_current):
+    def inliers_from_t(transform_matrix, pairs_before, pairs_current):
         """
         Given a certain transform transform_matrix, apply that transform to the previous frame point cloud and determine
         the inliers by comparing the Euclidean distance to the current frame point cloud.
@@ -316,7 +336,7 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
 
         Returns:
         inliers_cnt     : int           value <= number_of_pairs
-        inlier_indices  : numpy.ndarray size: (number_of_inliers, 1) and each element is value from 0-> number_of_pairs-1
+        inlier_indices  : numpy.ndarray size: (number_of_inliers, 1), and each element is value from 0-> number_of_pairs-1
 
         Returns the number of inliers found, as well as the indices of those inliers w.r.t. The original
         number_of_pairs features.
@@ -361,7 +381,7 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
         this_temp_transform_matrix = compute_transformation_matrix(
             prev_test_points, cur_test_points
         )
-        this_number_of_inliers, _ = inlines_from_t(
+        this_number_of_inliers, _ = inliers_from_t(
             this_temp_transform_matrix, pairs_before, pairs_current
         )
         return this_temp_transform_matrix, this_number_of_inliers
@@ -374,7 +394,7 @@ def filter_inlines_ransac(p_before, p_cur, max_iter):
             if (number_of_inliers / number_of_pairs) > high_inlier_perc_threshold:
                 break
 
-    _, inlier_indices = inlines_from_t(top_t, p_before, p_cur)  # repeat best transform
+    _, inlier_indices = inliers_from_t(top_t, p_before, p_cur)  # repeat best transform
 
     p_a = p_before[inlier_indices]
     p_b = p_cur[inlier_indices]
@@ -479,7 +499,7 @@ class VisualOdometry:
     def pose_estimation(self, features_corr):
         """
         Process the detected features of the left and right camera in the previous and current frames as 3D
-        point clouds, identify the features that are inlines, and use those features to compute the rotation
+        point clouds, identify the features that are inliers, and use those features to compute the rotation
         and translation from the previous frame to the current frame.
 
         Parameters:
@@ -501,25 +521,24 @@ class VisualOdometry:
 
         # ------------- start your code here -------------- #
 
-        # 1. Convert to 3d cloud points. 2 sets before: [x, y, z], and current: [x, y, z]
-        # 2. Iteratively run RANSAC to get inliers by fitting rotation_matrix and r to 3 points
-        # 3. Choose a version that had the most inliers
+        # 1. Convert to 3d cloud points, two sets: before: [x, y, z], and current: [x, y, z],
+        # 2. Iteratively run RANSAC to get inliers by fitting rotation_matrix and r to 3 points,
+        # 3. Choose a version that had the most inliers,
         # 4. Use M features for cloud alignment
         p_before, p_cur = self.convert_features_to_3d(
             features_corr
         )  # np arrays N x 3 each
         certainty = 0.99
         max_iter = compute_max_iter_ransac(certainty)
-        p_a, p_b, inlines_indices = filter_inlines_ransac(
+        p_a, p_b, inliers_indices = filter_inliers_ransac(
             p_before, p_cur, max_iter
         )  # M x 3 arrays
 
-        # TODO: Compute rotation_matrix and r from p_a and p_b which are inlier points
         transform_matrix = compute_transformation_matrix(p_a, p_b)
         rotation_matrix = transform_matrix[:3, :3]
         r = transform_matrix[:3, 3]
 
-        filtered_features_corr = features_corr[inlines_indices]
+        filtered_features_corr = features_corr[inliers_indices]
         f_r_prev, f_r_cur = (
             filtered_features_corr[:, 2:4],
             filtered_features_corr[:, 6:8],
@@ -578,9 +597,8 @@ class VisualOdometry:
 
         return img_l_tracking, img_r_tracking
 
-    def process_frame(self, img_left, img_right, frame_id):
+    def process_frame(self, img_left, img_right):
         kp_l, des_l, feature_l_img = self.feature_detection(img_left)
-
         kp_r, des_r, feature_r_img = self.feature_detection(img_right)
 
         # compute feature correspondence
@@ -618,20 +636,18 @@ class VisualOdometry:
 
         return img_l_tracking, img_r_tracking
 
-    def update(self, img_left, img_right, frame_id):
+    def update(self, img_left, img_right):
 
         self.new_frame_left = img_left
         self.new_frame_right = img_right
-        frame_left = img_left
-        frame_right = img_right
 
         if self.frame_stage == STAGE_DEFAULT_FRAME:
-            frame_left, frame_right = self.process_frame(img_left, img_right, frame_id)
+            frame_left, frame_right = self.process_frame(img_left, img_right)
 
         elif self.frame_stage == STAGE_SECOND_FRAME:
             frame_left, frame_right = self.process_second_frame(img_left, img_right)
 
-        elif self.frame_stage == STAGE_FIRST_FRAME:
+        else:
             frame_left, frame_right = self.process_first_frame(img_left, img_right)
 
         self.last_frame_left = self.new_frame_left

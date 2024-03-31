@@ -14,20 +14,13 @@ https://www.cvlibs.net/datasets/kitti/raw_data.php
 #   `./downloader.sh`
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-# ANDRES RANSAC BRANCH
-# import pkg_resources
-# pkg_resources.require("cv2==8.2.0")
-
 import os
 
 import cv2 as cv
-# from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io as sio
 from stereo_vo_base import StereoCamera, VisualOdometry
-
-# pip installs opencv-contrib-python
 
 
 def main():
@@ -50,7 +43,7 @@ def main():
     path_1 = "/2011_09_26/2011_09_26_drive_0005_sync/image_01/data/"
     zero_num = 10
     image_directory = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "..", "..", "Lab4/CityData")
+        os.path.join(os.path.dirname(__file__), "CityData")
     )
     # '/CityData/2011_09_26_calib/calib_cam_to_cam.txt'
     # baseline, focalLength,   fx,        fy,       cu,       cv
@@ -121,11 +114,12 @@ def main():
     # record video
     os.chdir(cwd)
     fourcc = cv.VideoWriter_fourcc(*"MPEG")
+    fourcc_right_inliers = cv.VideoWriter_fourcc(*"MPEG")
     video = cv.VideoWriter(
         "./video.avi", fourcc, 5.0, (1242, 775)
     )  # 375*2 + 25 (margin)
     video_right_inliers = cv.VideoWriter(
-        "./video.avi", fourcc, 5.0, (1242, 775)
+        "./video_right_inliers.avi", fourcc_right_inliers, 5.0, (1242, 375)
     )  # 375*2 + 25 (margin)
 
     for img_id in range(sequence_num):
@@ -138,7 +132,7 @@ def main():
 
         # finite-state machine
         # updates the rotation matrix and r
-        frame_left, frame_right = vo.update(img_left, img_right, img_id)
+        frame_left, frame_right = vo.update(img_left, img_right)
 
         # Create a white margin between two frames
         margin = np.ones_like(frame_left) * 255
@@ -159,9 +153,11 @@ def main():
             np.linalg.inv(transform_matrix_hist[img_id])
         )
 
-        # cv.imshow("Visual Odometry", vertical_frame)
+        cv.imshow("Visual Odometry", vertical_frame)
         video.write(vertical_frame)
-        video_right_inliers.write(frame_right)
+        if vo.frame_stage == 2:
+            video_right_inliers.write(frame_right)
+
         if cv.waitKey(10) & 0xFF == ord("q"):
             break
 
