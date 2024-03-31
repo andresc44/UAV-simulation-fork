@@ -22,7 +22,7 @@ import numpy as np
 import cv2 as cv
 import os
 import scipy.io as sio
-from mpl_toolkits.mplot3d import Axes3D
+# from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 
 from stereo_vo_base import StereoCamera, VisualOdometry
