@@ -10,6 +10,8 @@ import math
 
 import cv2 as cv
 import numpy as np
+from scipy.spatial.transform import Rotation as scipy_rotation
+import matplotlib.pyplot as plt
 
 STAGE_FIRST_FRAME = 0
 STAGE_SECOND_FRAME = 1
@@ -98,26 +100,121 @@ def find_feature_correspondences(
     return features_corr
 
 
-def compute_transformation_matrix(points_before, points_after):
+def estimate_pose(corresponding_pair_source, corresponding_pair_target):
+
+    # 1. Compute the centroid of the point clouds without weights
+    source_centroid = np.mean(corresponding_pair_source, axis=0)
+    target_centroid = np.mean(corresponding_pair_target, axis=0)
+    corresponding_pair_source = corresponding_pair_source-source_centroid
+    corresponding_pair_target = corresponding_pair_target-target_centroid
+    # 2. Compute the outer product (covariance matrix)
+    covariance_matrix = np.sum(np.array([np.matmul(corresponding_pair_source[i].reshape(3, 1), corresponding_pair_target[i].reshape(1, 3)) for i in range(len(corresponding_pair_source))]), axis=0)
+
+    # 3. Using Singular Value Decomposition (SVD)
+    u, s, vt = np.linalg.svd(covariance_matrix)
+    v = np.transpose(vt)
+
+    # 4. Compose final rotation and translation
+    sign_identity = np.eye(3)
+    sign_identity[2, 2] = np.sign(np.linalg.det(u) * np.linalg.det(vt))
+    rotation_matrix_target_source = np.matmul(v, np.matmul(sign_identity, np.transpose(u)))
+    translation_vector_target_source_target = -np.matmul(np.transpose(rotation_matrix_target_source), target_centroid) + source_centroid
+    translation_matrix_target_source = np.identity(4)
+    translation_matrix_target_source[0:3, 0:3] = rotation_matrix_target_source
+    translation_matrix_target_source[0:3, 3] = -np.matmul(rotation_matrix_target_source, translation_vector_target_source_target)
+
+    return translation_matrix_target_source
+
+
+def nearest_search(source_point_cloud, target_point_cloud):
+    # Using brute force search, we will compute the Euclidean distance between each two pairs, then take the minimum distance for each source points
+    corresponding_pair_source = source_point_cloud
+    corresponding_pair_target = np.zeros(corresponding_pair_source.shape)
+    euclidean_distance_summation = 0
+    for source_index in range(len(source_point_cloud)):
+        min_euclidean_distance = np.linalg.norm(source_point_cloud[source_index] - target_point_cloud[0])
+        for target_index in range(len(target_point_cloud)):
+            euclidean_distance = np.linalg.norm(source_point_cloud[source_index] - target_point_cloud[target_index])
+            if euclidean_distance <= min_euclidean_distance:
+                corresponding_pair_target[source_index] = target_point_cloud[target_index]
+                min_euclidean_distance = euclidean_distance
+        euclidean_distance_summation += min_euclidean_distance
+
+    mean_nearest_euclidean_distance = euclidean_distance_summation/len(source_point_cloud)
+    return corresponding_pair_source, corresponding_pair_target, mean_nearest_euclidean_distance
+
+
+def compute_transformation_matrix(source_point_cloud, target_point_cloud, number_of_iterations=5):
     """
     ...
 
     Parameters:
-    points_before   : numpy.ndarray size: (?, 3) either (M x 3) or (3 x 3)
-    points_after    : numpy.ndarray size: (?, 3) either (M x 3) or (3 x 3)
+    source_point_cloud   : numpy.ndarray size: (?, 3) either (M x 3) or (3 x 3)
+    target_point_cloud    : numpy.ndarray size: (?, 3) either (M x 3) or (3 x 3)
+    number_of_iterations    : number of iterations
     ...
 
     Returns:
     transform_matrix   : numpy.ndarray   size: (4, 4)
     ...
     """
-    # TODO:
-    # each input array is ? x 3 (X, Y, Z)
-    # compute transform transform_matrix from array
-    transform_matrix = np.eye(4)
-    return transform_matrix
+    pose = np.identity(4)
+    updated_point_cloud = source_point_cloud
+    iteration_x_translation = [0] * number_of_iterations
+    iteration_y_translation = [0] * number_of_iterations
+    iteration_z_translation = [0] * number_of_iterations
+    iteration_z_euler = [0] * number_of_iterations
+    iteration_y_euler = [0] * number_of_iterations
+    iteration_x_euler = [0] * number_of_iterations
+    iteration_mean_euclidean_distance = [0] * number_of_iterations
+
+    for i in range(number_of_iterations):
+        corresponding_pair_source, corresponding_pair_target, iteration_mean_euclidean_distance[i] = nearest_search(updated_point_cloud, target_point_cloud)
+        pose_translation_matrix = estimate_pose(corresponding_pair_source, corresponding_pair_target)
+        updated_point_cloud_reshaped = np.vstack([np.transpose(updated_point_cloud), np.ones(len(updated_point_cloud))])
+        updated_point_cloud = np.matmul(pose_translation_matrix, updated_point_cloud_reshaped)
+        updated_point_cloud = np.transpose(updated_point_cloud[0:3, :])
+        pose = np.matmul(pose_translation_matrix, pose)
+        scipy_rotation_matrix = scipy_rotation.from_matrix(pose_translation_matrix[0:3, 0:3])
+        iteration_x_translation[i], iteration_y_translation[i], iteration_z_translation[i] = pose_translation_matrix[0:3, 3]
+        iteration_z_euler[i], iteration_y_euler[i], iteration_x_euler[i] = scipy_rotation_matrix.as_euler("zyx", degrees=True)
+        print(f'finished alignment for iteration {i}, with mean Euclidean distance of {iteration_mean_euclidean_distance[i]}')
+
+    return pose
 
 
+def plot_3d_pose(pose, label, output_dir, plot_iterations=True):
+    a=1
+    # plt.figure(figsize=(16, 9))
+    # plt.clf()
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_mean_euclidean_distance, label='Mean Euclidean Distance')
+    # plt.xlabel('Number of Iterations')
+    # plt.ylabel('ICP Loss (Mean Euclidean Distance)')
+    # plt.title(f'Average Euclidean Distance Decay Graph for ICP - ' + label)
+    # plt.grid()
+    # plt.savefig(output_dir + '/loss_function_' + label + '.png')
+    # plt.figure(figsize=(16, 9))
+    # plt.clf()
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_x_translation, label='Translation X')
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_y_translation, label='Translation Y')
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_z_translation, label='Translation Z')
+    # plt.xlabel('Number of Iterations')
+    # plt.ylabel('3D Translation (mm)')
+    # plt.title('Translation change per iteration - ' + label)
+    # plt.grid()
+    # plt.legend()
+    # plt.savefig(output_dir + '/iteration_translation_' + label + '.png')
+    # plt.figure(figsize=(16, 9))
+    # plt.clf()
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_x_euler, label='Euler X')
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_y_euler, label='Euler Y')
+    # plt.plot(np.array(list(range(number_of_iterations))), iteration_z_euler, label='Euler Z')
+    # plt.xlabel('Number of Iterations')
+    # plt.ylabel('3D Rotation - Euler ZYX (degrees)')
+    # plt.title('Rotation change per iteration - ' + label)
+    # plt.grid()
+    # plt.legend()
+    # plt.savefig(output_dir + '/iteration_rotation_' + label + '.png')
 def feature_tracking(prev_kp, cur_kp, img, color=(0, 255, 0), alpha=0.5):
     img = cv.cvtColor(img, cv.COLOR_GRAY2BGR)
     cover = np.zeros_like(img)
@@ -525,6 +622,8 @@ class VisualOdometry:
 
         self.new_frame_left = img_left
         self.new_frame_right = img_right
+        frame_left = img_left
+        frame_right = img_right
 
         if self.frame_stage == STAGE_DEFAULT_FRAME:
             frame_left, frame_right = self.process_frame(img_left, img_right, frame_id)
