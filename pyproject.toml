@@ -29,6 +29,7 @@ Mosek = "^10.0.18"
 termcolor = "^1.1.0"
 rich = "^12.5.1 "
 opencv-python = "^4.8.0"
+opencv-contrib-python = "^4.9.0"
 pytest = "^8.1.1"
 pre-commit = "^3.7.0"
 polytope = "^0.2.5"
@@ -36,6 +37,8 @@ pytope = "^0.0.4"
 gdown = "^5.1.0"
 black = "^24.3.0"
 isort = "^5.13.2"
+scipy = "^1.12.0"
+menpo = "^0.11.0"
 
 
 [tool.poetry.dev-dependencies]

@@ -175,7 +175,7 @@ def nearest_search(source_point_cloud, target_point_cloud):
 
 
 def compute_transformation_matrix(
-    source_point_cloud, target_point_cloud, number_of_iterations=5
+    source_point_cloud, target_point_cloud, number_of_iterations=1
 ):
     """
     ...
@@ -228,9 +228,9 @@ def compute_transformation_matrix(
         iteration_z_euler[i], iteration_y_euler[i], iteration_x_euler[i] = (
             scipy_rotation_matrix.as_euler("zyx", degrees=True)
         )
-        print(
-            f"finished alignment for iteration {i}, with mean Euclidean distance of {iteration_mean_euclidean_distance[i]}"
-        )
+        # print(
+        #     f"finished alignment for iteration {i}, with mean Euclidean distance of {iteration_mean_euclidean_distance[i]}"
+        # )
 
     return pose
 
@@ -316,9 +316,7 @@ def filter_inliers_ransac(p_before, p_cur, max_iter):
 
     max_inliers = -1
     top_t = np.zeros((4, 4))
-    inlier_threshold_euclidean = (
-        10  # metres CONSIDER REVISING !!!!!!!!!!!!!!!!!!!!!!!!!
-    )
+    inlier_threshold_euclidean = 0.35
     high_inlier_perc_threshold = 0.95  # more than the high_inlier_perc_threshold percent of points are inliers, can break RANSAC
     number_of_pairs = p_before.shape[0]
 
@@ -367,7 +365,7 @@ def filter_inliers_ransac(p_before, p_cur, max_iter):
         The np arrays are each the unfiltered 3D point clouds of the features from the previous and current frame.
 
         Returns:
-        temp_transform_matrix           : numpy.ndarray     size: (4, 4)
+        iteration_transform_matrix           : numpy.ndarray     size: (4, 4)
         number_of_inliers     : int           value <= number_of_pairs
 
         Returns the transform applied to the previous frame, as well as the number of inliers found
@@ -379,20 +377,24 @@ def filter_inliers_ransac(p_before, p_cur, max_iter):
         prev_test_points = pairs_before[rand_idx]
         cur_test_points = pairs_current[rand_idx]
         this_temp_transform_matrix = compute_transformation_matrix(
-            prev_test_points, cur_test_points
+            prev_test_points, cur_test_points, 2
         )
         this_number_of_inliers, _ = inliers_from_t(
             this_temp_transform_matrix, pairs_before, pairs_current
         )
         return this_temp_transform_matrix, this_number_of_inliers
 
-    for _ in range(max_iter):
-        temp_transform_matrix, number_of_inliers = one_iter_ransac(p_before, p_cur)
+    print(f"starting ransac - maximum number of iteration number: {max_iter}")
+    for i in range(max_iter):
+        iteration_transform_matrix, number_of_inliers = one_iter_ransac(p_before, p_cur)
         if number_of_inliers > max_inliers:
             max_inliers = number_of_inliers
-            top_t = temp_transform_matrix
+            top_t = iteration_transform_matrix
             if (number_of_inliers / number_of_pairs) > high_inlier_perc_threshold:
+                print(f"finished ransac with {i} iterations, inliers > 95%")
                 break
+        if i == (max_iter - 1):
+            print(f"finished ransac after reaching the maximum number of iterations")
 
     _, inlier_indices = inliers_from_t(top_t, p_before, p_cur)  # repeat best transform
 
@@ -416,7 +418,7 @@ class VisualOdometry:
         self.des_l_prev = None  # previous descriptor for key points (left)
         self.kp_r_prev = None  # previous key points (right)
         self.des_r_prev = None  # previous descriptor key points (right)
-        self.detector = cv.xfeatures2d.SIFT_create()  # using sift for detection
+        self.detector = cv.SIFT.create()  # using sift for detection
         self.feature_color = (255, 191, 0)
         self.inlier_color = (32, 165, 218)
 
@@ -534,7 +536,7 @@ class VisualOdometry:
             p_before, p_cur, max_iter
         )  # M x 3 arrays
 
-        transform_matrix = compute_transformation_matrix(p_a, p_b)
+        transform_matrix = compute_transformation_matrix(p_a, p_b, 5)
         rotation_matrix = transform_matrix[:3, :3]
         r = transform_matrix[:3, 3]
 

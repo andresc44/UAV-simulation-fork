@@ -114,15 +114,12 @@ def main():
     # record video
     os.chdir(cwd)
     fourcc = cv.VideoWriter_fourcc(*"MPEG")
-    fourcc_right_inliers = cv.VideoWriter_fourcc(*"MPEG")
     video = cv.VideoWriter(
         "./video.avi", fourcc, 5.0, (1242, 775)
     )  # 375*2 + 25 (margin)
-    video_right_inliers = cv.VideoWriter(
-        "./video_right_inliers.avi", fourcc_right_inliers, 5.0, (1242, 375)
-    )  # 375*2 + 25 (margin)
 
     for img_id in range(sequence_num):
+        print(f"Start processing image {img_id} / {sequence_num}")
         img_left = cv.imread(
             image_directory + path_0 + str(img_id).zfill(zero_num) + ".png", 0
         )
@@ -155,15 +152,11 @@ def main():
 
         cv.imshow("Visual Odometry", vertical_frame)
         video.write(vertical_frame)
-        if vo.frame_stage == 2:
-            video_right_inliers.write(frame_right)
-
         if cv.waitKey(10) & 0xFF == ord("q"):
             break
 
     print("VO ends\n")
     video.release()
-    video_right_inliers.release()
     cv.destroyAllWindows()
 
     # save the estimated transformation matrix

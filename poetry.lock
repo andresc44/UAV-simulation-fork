@@ -580,6 +580,20 @@ pyparsing = ">=2.3.1"
 python-dateutil = ">=2.7"
 
 [[package]]
+name = "menpo"
+version = "0.11.0"
+description = "A Python toolkit for handling annotated data"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+matplotlib = ">=3.0"
+numpy = ">=1.14"
+pillow = ">=4.0"
+scipy = ">=1.0"
+
+[[package]]
 name = "mosek"
 version = "10.0.47"
 description = "Python API for Mosek"
@@ -680,6 +694,25 @@ description = "cuDNN runtime libraries"
 category = "main"
 optional = false
 python-versions = ">=3"
+
+[[package]]
+name = "opencv-contrib-python"
+version = "4.9.0.80"
+description = "Wrapper package for OpenCV python bindings."
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.dependencies]
+numpy = [
+    {version = ">=1.21.2", markers = "python_version >= \"3.10\""},
+    {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\""},
+    {version = ">=1.23.5", markers = "python_version >= \"3.11\""},
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
+    {version = ">=1.19.3", markers = "python_version >= \"3.6\" and platform_system == \"Linux\" and platform_machine == \"aarch64\" or python_version >= \"3.9\""},
+    {version = ">=1.17.0", markers = "python_version >= \"3.7\""},
+    {version = ">=1.17.3", markers = "python_version >= \"3.8\""},
+]
 
 [[package]]
 name = "opencv-python"
@@ -1299,7 +1332,7 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.10"
-content-hash = "1c54dbd0d1c26970cc34f39b592878e58a8c6c77df3de96fdd261373705dc3c9"
+content-hash = "9708f8b6e69e9fd7e1e0aaf03631178682a52c95c5fe63f5f21465b3aba943f1"
 
 [metadata.files]
 absl-py = []
@@ -1345,6 +1378,7 @@ linear-operator = []
 markdown = []
 markupsafe = []
 matplotlib = []
+menpo = []
 mosek = []
 msgpack = []
 munch = []
@@ -1356,6 +1390,7 @@ nvidia-cublas-cu11 = []
 nvidia-cuda-nvrtc-cu11 = []
 nvidia-cuda-runtime-cu11 = []
 nvidia-cudnn-cu11 = []
+opencv-contrib-python = []
 opencv-python = []
 osqp = []
 packaging = []

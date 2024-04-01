@@ -24,5 +24,8 @@ setup(
         "termcolor",
         "pytest",
         "pre-commit",
+        "opencv-python",
+        "scikit-learn",
+        "scipy",
     ],
 )
