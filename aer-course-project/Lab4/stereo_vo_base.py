@@ -9,7 +9,6 @@ https://carre.utoronto.ca/aer1217
 import math
 
 import cv2 as cv
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial.transform import Rotation as ScipyRotation
 
@@ -206,9 +205,7 @@ def compute_transformation_matrix(
             corresponding_pair_target,
             iteration_mean_euclidean_distance[i],
         ) = nearest_search(updated_point_cloud, target_point_cloud)
-        pose_translation_matrix = estimate_pose(
-            updated_point_cloud, target_point_cloud
-        )
+        pose_translation_matrix = estimate_pose(updated_point_cloud, target_point_cloud)
         updated_point_cloud_reshaped = np.vstack(
             [np.transpose(updated_point_cloud), np.ones(len(updated_point_cloud))]
         )
@@ -418,7 +415,7 @@ class VisualOdometry:
         self.des_l_prev = None  # previous descriptor for key points (left)
         self.kp_r_prev = None  # previous key points (right)
         self.des_r_prev = None  # previous descriptor key points (right)
-        self.detector = cv.SIFT.create()  # using sift for detection
+        self.detector = cv.SIFT_create()  # using sift for detection
         self.feature_color = (255, 191, 0)
         self.inlier_color = (32, 165, 218)
 

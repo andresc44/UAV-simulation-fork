@@ -154,14 +154,13 @@ def main():
 
     print("VO ends\n")
     cv.destroyAllWindows()
-    fourcc = cv.VideoWriter_fourcc(*"MPEG")
     video = cv.VideoWriter(
-        cwd + "/video.mpg", fourcc, 5.0, (1242, 375)
+        "./video_stereo.avi", cv.VideoWriter_fourcc(*"XVID"), 5.0, (1242, 375)
     )  # 375*2 + 25 (margin)
 
     for frame in write_frames:
         video.write(frame)
-        if cv.waitKey(1) & 0xFF == ord("q"):
+        if cv.waitKey(5) & 0xFF == ord("q"):
             break
     video.release()
     cv.destroyAllWindows()
