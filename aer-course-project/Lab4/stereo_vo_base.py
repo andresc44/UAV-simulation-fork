@@ -265,7 +265,7 @@ def compute_max_iter_ransac(certainty):
     The number of iterations required to achieve the desired certainty
     """
     pts_picked = 3
-    perc_outlier = 0.3  # CHOSEN ARBITRARILY, CONSIDER REVISING#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    perc_outlier = 0.35
     number_of_iterations = math.log(1 - certainty) / math.log(
         1 - (1 - perc_outlier) ** pts_picked
     )
@@ -426,14 +426,6 @@ class VisualOdometry:
         kp, des = self.detector.detectAndCompute(img, None)
         feature_image = cv.drawKeypoints(img, kp, None)
         return kp, des, feature_image
-
-    # POINT CLOUD ALIGNMENT ###################################
-
-    # RANSAC ##################################################
-    # TODO:  - Determine good inlier_threshold_euclidean value in filter_inliers_RASAC fxn
-    #       - Determine good high_inlier_perc_threshold value in compute_max_iter_RANSAC fxn
-    #       - Determine good perc_outlier value in compute_max_iter_RANSAC fxn
-    #       - Debug
 
     def convert_features_to_3d(self, features_corr):
         """

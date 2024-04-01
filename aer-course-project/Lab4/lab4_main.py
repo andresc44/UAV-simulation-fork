@@ -148,7 +148,7 @@ def main():
         )
 
         cv.imshow("Visual Odometry", vertical_frame)
-        write_frames.append(frame_right)
+        write_frames.append(vertical_frame)
         if cv.waitKey(1) & 0xFF == ord("q"):
             break
 
@@ -156,7 +156,7 @@ def main():
     cv.destroyAllWindows()
     fourcc = cv.VideoWriter_fourcc(*"MPEG")
     video = cv.VideoWriter(
-        cwd + "/video_right_inliers.mpg", fourcc, 5.0, (1242, 375)
+        cwd + "/video.mpg", fourcc, 5.0, (1242, 375)
     )  # 375*2 + 25 (margin)
 
     for frame in write_frames:
