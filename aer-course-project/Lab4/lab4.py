@@ -113,10 +113,7 @@ def main():
 
     # record video
     os.chdir(cwd)
-    fourcc = cv.VideoWriter_fourcc(*"MPEG")
-    video = cv.VideoWriter(
-        "./video.avi", fourcc, 5.0, (1242, 775)
-    )  # 375*2 + 25 (margin)
+    write_frames = []
 
     for img_id in range(sequence_num):
         print(f"Start processing image {img_id} / {sequence_num}")
@@ -151,11 +148,21 @@ def main():
         )
 
         cv.imshow("Visual Odometry", vertical_frame)
-        video.write(vertical_frame)
-        if cv.waitKey(10) & 0xFF == ord("q"):
+        write_frames.append(frame_right)
+        if cv.waitKey(1) & 0xFF == ord("q"):
             break
 
     print("VO ends\n")
+    cv.destroyAllWindows()
+    fourcc = cv.VideoWriter_fourcc(*"MPEG")
+    video = cv.VideoWriter(
+        cwd + "/video_right_inliers.mpg", fourcc, 5.0, (1242, 375)
+    )  # 375*2 + 25 (margin)
+
+    for frame in write_frames:
+        video.write(frame)
+        if cv.waitKey(1) & 0xFF == ord("q"):
+            break
     video.release()
     cv.destroyAllWindows()
 
