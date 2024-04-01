@@ -207,7 +207,7 @@ def compute_transformation_matrix(
             iteration_mean_euclidean_distance[i],
         ) = nearest_search(updated_point_cloud, target_point_cloud)
         pose_translation_matrix = estimate_pose(
-            corresponding_pair_source, corresponding_pair_target
+            updated_point_cloud, target_point_cloud
         )
         updated_point_cloud_reshaped = np.vstack(
             [np.transpose(updated_point_cloud), np.ones(len(updated_point_cloud))]
@@ -265,7 +265,7 @@ def compute_max_iter_ransac(certainty):
     The number of iterations required to achieve the desired certainty
     """
     pts_picked = 3
-    perc_outlier = 0.35
+    perc_outlier = 0.3
     number_of_iterations = math.log(1 - certainty) / math.log(
         1 - (1 - perc_outlier) ** pts_picked
     )
@@ -377,7 +377,7 @@ def filter_inliers_ransac(p_before, p_cur, max_iter):
         prev_test_points = pairs_before[rand_idx]
         cur_test_points = pairs_current[rand_idx]
         this_temp_transform_matrix = compute_transformation_matrix(
-            prev_test_points, cur_test_points, 2
+            prev_test_points, cur_test_points, 1
         )
         this_number_of_inliers, _ = inliers_from_t(
             this_temp_transform_matrix, pairs_before, pairs_current
@@ -528,7 +528,7 @@ class VisualOdometry:
             p_before, p_cur, max_iter
         )  # M x 3 arrays
 
-        transform_matrix = compute_transformation_matrix(p_a, p_b, 5)
+        transform_matrix = compute_transformation_matrix(p_a, p_b, 1)
         rotation_matrix = transform_matrix[:3, :3]
         r = transform_matrix[:3, 3]
 

@@ -10,7 +10,7 @@ This code has two additions to the starter code provided in the assignment hando
 
 - Pose Estimation:
     Using two sets of point clouds, for the current frame and previous frame, we used point cloud adjustment to determine
-    the change in pose. For point cloud adjustment, we used singular value decomposition, with iteration 5.
+    the change in pose. For point cloud adjustment, we used singular value decomposition using the matched keypoints.
 
 - RANSAC:
     to reject the outliers, we used a ransac method by determining the pose change using randomly selected three key points,
@@ -22,4 +22,4 @@ Both of these are added as helper methods in the stereo_vo_base.py file, and use
 
 The method pose_estimation uses ransac on the correlated keypoints 3d points. Each ransac iteration uses the point cloud adjustment method
 on 3 random points, then performs outlier rejection. And finally, the point cloud adjustments are used one last time to get the pose estimation
-using all the inliers. The SVD is used with 2 iterations during each ransac iteration, and is used with 5 iterations on the final pose estimation
+using all the inliers.
