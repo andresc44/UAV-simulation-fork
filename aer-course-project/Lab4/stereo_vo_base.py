@@ -173,7 +173,7 @@ def nearest_search(source_point_cloud, target_point_cloud):
     )
 
 
-def compute_transformation_matrix(
+def point_cloud_alignment_matrix(
     source_point_cloud, target_point_cloud, number_of_iterations=1
 ):
     """
@@ -373,8 +373,8 @@ def filter_inliers_ransac(p_before, p_cur, max_iter):
         )  # 3 random samples
         prev_test_points = pairs_before[rand_idx]
         cur_test_points = pairs_current[rand_idx]
-        this_temp_transform_matrix = compute_transformation_matrix(
-            prev_test_points, cur_test_points, 1
+        this_temp_transform_matrix = point_cloud_alignment_matrix(
+            prev_test_points, cur_test_points
         )
         this_number_of_inliers, _ = inliers_from_t(
             this_temp_transform_matrix, pairs_before, pairs_current
@@ -525,7 +525,7 @@ class VisualOdometry:
             p_before, p_cur, max_iter
         )  # M x 3 arrays
 
-        transform_matrix = compute_transformation_matrix(p_a, p_b, 1)
+        transform_matrix = point_cloud_alignment_matrix(p_a, p_b)
         rotation_matrix = transform_matrix[:3, :3]
         r = transform_matrix[:3, 3]
 

@@ -149,18 +149,18 @@ def main():
 
         cv.imshow("Visual Odometry", vertical_frame)
         write_frames.append(vertical_frame)
-        if cv.waitKey(1) & 0xFF == ord("q"):
+        if cv.waitKey(10) & 0xFF == ord("q"):
             break
 
     print("VO ends\n")
     cv.destroyAllWindows()
     video = cv.VideoWriter(
-        "./video_stereo.avi", cv.VideoWriter_fourcc(*"XVID"), 5.0, (1242, 375)
+        "./video_stereo.avi", cv.VideoWriter_fourcc(*"XVID"), 5.0, (1242, 775)
     )  # 375*2 + 25 (margin)
 
     for frame in write_frames:
         video.write(frame)
-        if cv.waitKey(5) & 0xFF == ord("q"):
+        if cv.waitKey(10) & 0xFF == ord("q"):
             break
     video.release()
     cv.destroyAllWindows()
