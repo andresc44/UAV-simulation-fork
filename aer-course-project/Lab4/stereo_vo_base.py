@@ -143,34 +143,34 @@ def estimate_pose(corresponding_pair_source, corresponding_pair_target):
     return translation_matrix_target_source
 
 
-def nearest_search(source_point_cloud, target_point_cloud):
-    # Using brute force search, we will compute the Euclidean distance between each two pairs, then take the minimum distance for each source point
-    corresponding_pair_source = source_point_cloud
-    corresponding_pair_target = np.zeros(corresponding_pair_source.shape)
-    euclidean_distance_summation = 0
-    for source_index in range(len(source_point_cloud)):
-        min_euclidean_distance = np.linalg.norm(
-            source_point_cloud[source_index] - target_point_cloud[0]
-        )
-        for target_index in range(len(target_point_cloud)):
-            euclidean_distance = np.linalg.norm(
-                source_point_cloud[source_index] - target_point_cloud[target_index]
-            )
-            if euclidean_distance <= min_euclidean_distance:
-                corresponding_pair_target[source_index] = target_point_cloud[
-                    target_index
-                ]
-                min_euclidean_distance = euclidean_distance
-        euclidean_distance_summation += min_euclidean_distance
+# def nearest_search(source_point_cloud, target_point_cloud):
+#     # Using brute force search, we will compute the Euclidean distance between each two pairs, then take the minimum distance for each source point
+#     corresponding_pair_source = source_point_cloud
+#     corresponding_pair_target = np.zeros(corresponding_pair_source.shape)
+#     euclidean_distance_summation = 0
+#     for source_index in range(len(source_point_cloud)):
+#         min_euclidean_distance = np.linalg.norm(
+#             source_point_cloud[source_index] - target_point_cloud[0]
+#         )
+#         for target_index in range(len(target_point_cloud)):
+#             euclidean_distance = np.linalg.norm(
+#                 source_point_cloud[source_index] - target_point_cloud[target_index]
+#             )
+#             if euclidean_distance <= min_euclidean_distance:
+#                 corresponding_pair_target[source_index] = target_point_cloud[
+#                     target_index
+#                 ]
+#                 min_euclidean_distance = euclidean_distance
+#         euclidean_distance_summation += min_euclidean_distance
 
-    mean_nearest_euclidean_distance = euclidean_distance_summation / len(
-        source_point_cloud
-    )
-    return (
-        corresponding_pair_source,
-        corresponding_pair_target,
-        mean_nearest_euclidean_distance,
-    )
+#     mean_nearest_euclidean_distance = euclidean_distance_summation / len(
+#         source_point_cloud
+#     )
+#     return (
+#         corresponding_pair_source,
+#         corresponding_pair_target,
+#         mean_nearest_euclidean_distance,
+#     )
 
 
 def point_cloud_alignment_matrix(
@@ -191,20 +191,14 @@ def point_cloud_alignment_matrix(
     """
     pose = np.identity(4)
     updated_point_cloud = source_point_cloud
-    iteration_x_translation = [0] * number_of_iterations
-    iteration_y_translation = [0] * number_of_iterations
-    iteration_z_translation = [0] * number_of_iterations
-    iteration_z_euler = [0] * number_of_iterations
-    iteration_y_euler = [0] * number_of_iterations
-    iteration_x_euler = [0] * number_of_iterations
-    iteration_mean_euclidean_distance = [0] * number_of_iterations
+    # iteration_mean_euclidean_distance = [0] * number_of_iterations
 
     for i in range(number_of_iterations):
-        (
-            corresponding_pair_source,
-            corresponding_pair_target,
-            iteration_mean_euclidean_distance[i],
-        ) = nearest_search(updated_point_cloud, target_point_cloud)
+        # (
+        #     corresponding_pair_source,
+        #     corresponding_pair_target,
+        #     iteration_mean_euclidean_distance[i],
+        # ) = nearest_search(updated_point_cloud, target_point_cloud)
         pose_translation_matrix = estimate_pose(updated_point_cloud, target_point_cloud)
         updated_point_cloud_reshaped = np.vstack(
             [np.transpose(updated_point_cloud), np.ones(len(updated_point_cloud))]
@@ -214,20 +208,6 @@ def point_cloud_alignment_matrix(
         )
         updated_point_cloud = np.transpose(updated_point_cloud[0:3, :])
         pose = np.matmul(pose_translation_matrix, pose)
-        scipy_rotation_matrix = ScipyRotation.from_matrix(
-            pose_translation_matrix[0:3, 0:3]
-        )
-        (
-            iteration_x_translation[i],
-            iteration_y_translation[i],
-            iteration_z_translation[i],
-        ) = pose_translation_matrix[0:3, 3]
-        iteration_z_euler[i], iteration_y_euler[i], iteration_x_euler[i] = (
-            scipy_rotation_matrix.as_euler("zyx", degrees=True)
-        )
-        # print(
-        #     f"finished alignment for iteration {i}, with mean Euclidean distance of {iteration_mean_euclidean_distance[i]}"
-        # )
 
     return pose
 
