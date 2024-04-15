@@ -79,6 +79,7 @@ def run(test=False):
         firmware_wrapper = make('firmware',
                     env_func, FIRMWARE_FREQ, CTRL_FREQ
                     ) 
+        # safe_control_gym/controllers/firmware/firmware_wrapper.py
         obs, info = firmware_wrapper.reset()      
         info['ctrl_timestep'] = CTRL_DT
         info['ctrl_freq'] = CTRL_FREQ
@@ -202,6 +203,7 @@ def run(test=False):
 
             # Step the environment.
             obs, reward, done, info, action = firmware_wrapper.step(curr_time, action)
+            # safe_control_gym/envs/gym_pybullet_drones/quadrotor.py
         else:
             if first_ep_iteration:
                 reward = 0
