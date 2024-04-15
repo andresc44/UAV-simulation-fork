@@ -289,6 +289,7 @@ def plot_trajectory(t_scaled,
 
     """
     # Plot each dimension.
+    # plt.figure(figsize=(10, 5))
     _, axs = plt.subplots(3, 1)
     axs[0].plot(t_scaled, ref_x)
     axs[0].set_ylabel('x (m)')
@@ -296,20 +297,24 @@ def plot_trajectory(t_scaled,
     axs[1].set_ylabel('y (m)')
     axs[2].plot(t_scaled, ref_z)
     axs[2].set_ylabel('z (m)')
-    plt.show(block=False)
-    plt.pause(2)
-    plt.close()
+    plt.savefig("xyz_plot.png",bbox_inches='tight')
+   
+    # plt.show(block=False)
+    # plt.pause(2)
+    # plt.close()
 
     # Plot in 3D.
+    plt.figure(figsize=(10, 5))
     ax = plt.axes(projection='3d')
     ax.plot3D(ref_x, ref_y, ref_z)
     ax.scatter3D(waypoints[:,0], waypoints[:,1], waypoints[:,2])
     ax.set_xlim([-3.5, 3.5])
     ax.set_ylim([-3.5, 3.5])
     ax.set_zlim([0.0, 2.0])
+    plt.savefig("3d_view.png",bbox_inches='tight')
     plt.show(block=False)
     plt.pause(2)
-    plt.close()
+    # plt.close()
 
 def draw_trajectory(initial_info,
                     waypoints,
