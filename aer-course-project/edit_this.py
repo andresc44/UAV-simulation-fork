@@ -53,8 +53,8 @@ except ImportError:
 # REPLACE THIS (END) ####
 #########################
 LIFT_DURATION = 0.5
-LAND_DURATION = 1.0
-END_CUSHION_TIME = 0.3
+LAND_DURATION = 1.5
+END_CUSHION_TIME = 1.5
 
 
 class Controller():
@@ -242,7 +242,7 @@ class Controller():
         # [INSTRUCTIONS] Example code for using cmdFullState interface   
         elif iteration >= LIFT_DURATION*self.CTRL_FREQ and iteration < self.end_cmd_iter:
             step = int(min(iteration-LIFT_DURATION*self.CTRL_FREQ, len(self.ref_x) -1))
-            print(f"{step} out of {len(self.ref_x) -1}")
+            # print(f"{step} out of {len(self.ref_x) -1}")
             target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]])
             target_vel = np.zeros(3)
             target_acc = np.zeros(3)

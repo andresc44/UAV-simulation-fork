@@ -297,7 +297,7 @@ def plot_trajectory(t_scaled,
     axs[2].plot(t_scaled, ref_z)
     axs[2].set_ylabel('z (m)')
     plt.show(block=False)
-    plt.pause(0.5)
+    plt.pause(1.0)
     plt.close()
 
     # Plot in 3D.
@@ -308,7 +308,7 @@ def plot_trajectory(t_scaled,
     ax.set_ylim([-3.5, 3.5])
     ax.set_zlim([0.0, 2.0])
     plt.show(block=False)
-    plt.pause(0.5)
+    plt.pause(1.0)
     plt.close()
 
 def draw_trajectory(initial_info,
