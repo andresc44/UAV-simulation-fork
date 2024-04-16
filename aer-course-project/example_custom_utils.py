@@ -6,6 +6,8 @@ Please use a file like this one to add extra functions.
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import os
+import itertools
 show_animation = True
 
 def exampleFunction():
@@ -437,9 +439,14 @@ class AStar():
 
 
 
-# def compute_fullpath(order):
-
 def main():
+    orders=np.array(list(itertools.permutations([1,2,3,4])))
+    order=[[1,2,3,4]]
+    for order in orders:
+        compute_fullpath(order)
+    pass
+
+def compute_fullpath(order):
     show_animation = True
     gates=np.array([  # x, y, z, r, p, y, type 
                     [ 0.5, -2.5, 0, 0, 0, -1.57, 0],      # gate 1
@@ -452,7 +459,11 @@ def main():
                         [ 0.5, -1.0, 0, 0, 0, 0],             # obstacle 2
                         [ 1.5,    0, 0, 0, 0, 0],             # obstacle 3
                         [-1.0,    0, 0, 0, 0, 0]])              # obstacle 4
-    order=np.array([1,2,4,3])
+    # order=np.array([4,3,2,1])
+    file_name=f"Path_files/path_{order[0]}{order[1]}{order[2]}{order[3]}/"
+
+    if not os.path.isdir(file_name):
+        os.makedirs(file_name)
     # order=np.array([1,2,3,4])
     # order=np.array([4,1,3,2])
 
@@ -554,7 +565,7 @@ def main():
         
         print("Path:",path)
         # path.tofile('test_path.dat')
-        np.save(f'test_path{i}.npy', path)    # .npy extension is added if not given
+        np.save(file_name+f'test_path{i}.npy', path)    # .npy extension is added if not given
 
         obs=np.vstack((obs,[gates[value,0]*100,gates[value,1]*100,7]))            #  obs.append([gate[value,0]*100,gate[value,1]*100,20])
 
@@ -563,7 +574,7 @@ def main():
             plt.pause(0.001)
             # print(rx)
             # print(ry)
-            plt.savefig(f'test_path{i}.png',bbox_inches='tight',dpi=400)
+            plt.savefig(file_name+f'test_path{i}.png',bbox_inches='tight',dpi=400)
             plt.show(block=False)
 
 
@@ -591,18 +602,8 @@ def main():
     
     print("Path:",path)
     # path.tofile('test_path.dat')
-    np.save('test_path_final.npy', path)    
+    np.save(file_name+'test_path_final.npy', path)    
 
-        
-    
-    
-
-    # if show_animation:  # pragma: no cover
-    #     plt.plot(ox, oy, ".k")
-    #     plt.plot(sx, sy, "og")
-    #     plt.plot(gx, gy, "xb")
-    #     plt.grid(True)
-    #     plt.axis("equal")
 
    
 
@@ -611,7 +612,7 @@ def main():
         plt.pause(0.001)
         # print(rx)
         # print(ry)
-        plt.savefig('test_path_final.png',bbox_inches='tight',dpi=400)
+        plt.savefig(file_name+'test_path_final.png',bbox_inches='tight',dpi=400)
         plt.show(block=False)
 
 if __name__ == '__main__':

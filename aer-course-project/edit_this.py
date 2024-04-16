@@ -248,13 +248,14 @@ class Controller():
         iteration = int(time*self.CTRL_FREQ)
         
         print(iteration,self.iteration==iteration)
+        iteration=self.iteration
         self.iteration+=1
 
         #########################
         # REPLACE THIS (START) ##
         #########################
 
-        # print("The info. of the gates ")
+        # print("The info. of the gates ") 
         # print(self.NOMINAL_GATES)
         
         if iteration == 0:
@@ -294,7 +295,7 @@ class Controller():
 
 
 
-        elif iteration == (self.time_needed+2)*self.CTRL_FREQ+2:
+        elif iteration == (self.time_needed+2)*self.CTRL_FREQ+1:
             height = 0.
             duration = 2
 
