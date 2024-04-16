@@ -63,7 +63,7 @@ class AStar():
         """
         
         # obstacles=np.array(obstacles)
-        print("obs:",obstacles)
+        # print("obs:",obstacles)
        
         self.x_center=obstacles[:,0]
         self.y_center=obstacles[:,1]
@@ -122,13 +122,14 @@ class AStar():
         if show_animation:  # pragma: no cover
             plt.clf()
             # plt.gca().invert_yaxis()
-            
+            plt.grid(True)
             plt.scatter(ox, oy,s=2)
             plt.plot(sx, sy, "og")
             plt.plot(gx, gy, "xb")
-            plt.grid(True)
+            
             plt.axis("equal")
-            plt.show(block=False)
+            # plt.show(block=False)
+            
 
         start_node = self.Node(self.calc_xy_index(sx, self.min_x),
                                self.calc_xy_index(sy, self.min_y), 0.0, -1)
@@ -205,7 +206,7 @@ class AStar():
         # print(extended_path)
 
 
-        # if show_animation:  # pragma: no cover
+        if show_animation:  # pragma: no cover
         #     print("showwww")
         #     plt.plot(rx, ry, "-r")
         #     plt.pause(0.001)
@@ -217,7 +218,7 @@ class AStar():
             # print(rx)
             # print(ry)
             # plt.show()
-            # self.plot_path_with_orientations(extended_path)
+            self.plot_path_with_orientations(extended_path)
         
         
         
@@ -240,12 +241,8 @@ class AStar():
         for i, (x, y, _, zx, zy, zz, zw) in enumerate(path_with_orientation):
             angle = 2 * np.arctan2(zz, zw)  # Convert quaternion back to angle
             # print(angle)
-            plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=40)
-        #     ax.scatter(x, y, color='blue')  # Point
-
-        # ax.set_aspect('equal', adjustable='box')
-        # plt.grid(True)
-        # plt.show()
+            plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=70,zorder=5)
+        
     def add_orientation_to_path(self, path):
     # Function to calculate quaternion from an angle theta
         def angle_to_quaternion(theta):
@@ -331,10 +328,7 @@ class AStar():
         self.min_y = round(min(oy))
         self.max_x = round(max(ox))
         self.max_y = round(max(oy))
-        # print("min_x:", self.min_x)
-        # print("min_y:", self.min_y)
-        # print("max_x:", self.max_x)
-        # print("max_y:", self.max_y)
+      
 
         self.x_width = round((self.max_x - self.min_x) / self.resolution)
         self.y_width = round((self.max_y - self.min_y) / self.resolution)
@@ -443,9 +437,10 @@ class AStar():
 
 
 
+# def compute_fullpath(order):
 
 def main():
-
+    show_animation = True
     gates=np.array([  # x, y, z, r, p, y, type 
                     [ 0.5, -2.5, 0, 0, 0, -1.57, 0],      # gate 1
                     [ 2.0, -1.5, 0, 0, 0, 0,     0],      # gate 2
@@ -457,19 +452,46 @@ def main():
                         [ 0.5, -1.0, 0, 0, 0, 0],             # obstacle 2
                         [ 1.5,    0, 0, 0, 0, 0],             # obstacle 3
                         [-1.0,    0, 0, 0, 0, 0]])              # obstacle 4
-    order=np.array([1,2,3,4])
-    order=np.array([4,1,3,2])
+    order=np.array([1,2,4,3])
+    # order=np.array([1,2,3,4])
+    # order=np.array([4,1,3,2])
 
     obs=[]
+    obs_buffer=0.3
+    # obs_buffer=0.25
     for gate in gates:
-        if gate[5]!=0:
-            obs.append([gate[0],gate[1]+0.2,gate_rad])
+        if gate[5]!=0: # for vertical gate
+            obs.append([gate[0],gate[1]+0.2,gate_rad]) # gate obstacle location
             obs.append([gate[0],gate[1]-0.2,gate_rad])
-        else:
-            obs.append([gate[0]+0.2,gate[1],gate_rad])
+
+            obs.append([gate[0]+obs_buffer,gate[1]+0.2,gate_rad]) # buffer obstacle 
+            obs.append([gate[0]+obs_buffer,gate[1]-0.2,gate_rad])
+
+            obs.append([gate[0]-obs_buffer,gate[1]+0.2,gate_rad])
+            obs.append([gate[0]-obs_buffer,gate[1]-0.2,gate_rad])
+
+            obs.append([gate[0]+obs_buffer,gate[1]+0.3,gate_rad])
+            obs.append([gate[0]+obs_buffer,gate[1]-0.3,gate_rad])
+
+            obs.append([gate[0]-obs_buffer,gate[1]+0.3,gate_rad])
+            obs.append([gate[0]-obs_buffer,gate[1]-0.3,gate_rad])
+        else: #for horizontal gate
+            obs.append([gate[0]+0.2,gate[1],gate_rad])  # gate obstacle location
             obs.append([gate[0]-0.2,gate[1],gate_rad])
 
+            obs.append([gate[0]+0.2,gate[1]+obs_buffer,gate_rad]) # buffer obstacle 
+            obs.append([gate[0]-0.2,gate[1]+obs_buffer,gate_rad])
+
+            obs.append([gate[0]+0.2,gate[1]-obs_buffer,gate_rad])
+            obs.append([gate[0]-0.2,gate[1]-obs_buffer,gate_rad])
+
+            obs.append([gate[0]+0.3,gate[1]+obs_buffer,gate_rad])
+            obs.append([gate[0]-0.3,gate[1]+obs_buffer,gate_rad])
+
+            obs.append([gate[0]+0.3,gate[1]-obs_buffer,gate_rad])
+            obs.append([gate[0]-0.3,gate[1]-obs_buffer,gate_rad])
     obstacles_rad=0.06
+    obstacles_rad=0.2
     obstacles_noise=0.2
 
     obs_rad_corrupted=obstacles_rad+obstacles_noise
@@ -513,13 +535,18 @@ def main():
         direction = np.array([path[-1,0]-path[-2,0], path[-1,1]-path[-2,1]])
         norm = np.linalg.norm(direction)
         direction_unit = direction / norm
-        next_pose=path[-1,0:2]+direction_unit * 30
-        path=np.vstack((path,[next_pose[0],next_pose[1],1,0,0,0,0]))
+
+        last_pose=path[-1,0:2] ############################change shootout to 10 
+        path=np.vstack((path,
+                        [last_pose[0]+ direction_unit[0] * 10,last_pose[1]+direction_unit[1] * 10,1,0,0,0,0],
+                        [last_pose[0]+ direction_unit[0] * 20,last_pose[1]+direction_unit[1] * 20,1,0,0,0,0]
+                        # [last_pose[0]+ direction_unit[0] * 30,last_pose[1]+direction_unit[1] * 30,1,0,0,0,0]
+                        ))
 
 
         rx=path[:,0]*1
         ry=path[:,1]*1
-        print("unscaled path:",path[:,0:3])
+        # print("unscaled path:",path[:,0:3])
 
         path=path[:,0:3]
         path[:,:2]=path[:,:2]/100
@@ -529,15 +556,15 @@ def main():
         # path.tofile('test_path.dat')
         np.save(f'test_path{i}.npy', path)    # .npy extension is added if not given
 
-        obs=np.vstack((obs,[gates[value,0]*100,gates[value,1]*100,15]))            #  obs.append([gate[value,0]*100,gate[value,1]*100,20])
+        obs=np.vstack((obs,[gates[value,0]*100,gates[value,1]*100,7]))            #  obs.append([gate[value,0]*100,gate[value,1]*100,20])
 
         if show_animation:  # pragma: no cover
             plt.plot(rx, ry, "-r")
             plt.pause(0.001)
-            print(rx)
-            print(ry)
-            plt.savefig(f'test_path{i}.png',bbox_inches='tight')
-            plt.show()
+            # print(rx)
+            # print(ry)
+            plt.savefig(f'test_path{i}.png',bbox_inches='tight',dpi=400)
+            plt.show(block=False)
 
 
 
@@ -564,7 +591,7 @@ def main():
     
     print("Path:",path)
     # path.tofile('test_path.dat')
-    np.save('test_path_final.npy', path)    # .npy extension is added if not given
+    np.save('test_path_final.npy', path)    
 
         
     
@@ -582,10 +609,10 @@ def main():
     if show_animation:  # pragma: no cover
         plt.plot(rx, ry, "-r")
         plt.pause(0.001)
-        print(rx)
-        print(ry)
-        plt.savefig('test_path_final.png',bbox_inches='tight')
-        plt.show()
+        # print(rx)
+        # print(ry)
+        plt.savefig('test_path_final.png',bbox_inches='tight',dpi=400)
+        plt.show(block=False)
 
 if __name__ == '__main__':
     main()

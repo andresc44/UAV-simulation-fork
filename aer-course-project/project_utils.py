@@ -313,7 +313,7 @@ def plot_trajectory(t_scaled,
     ax.set_zlim([0.0, 2.0])
     plt.savefig("3d_view.png",bbox_inches='tight')
     plt.show(block=False)
-    plt.pause(2)
+    plt.pause(1)
     # plt.close()
 
 def draw_trajectory(initial_info,
