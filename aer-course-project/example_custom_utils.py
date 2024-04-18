@@ -441,7 +441,7 @@ class AStar():
 
 def main():
     orders=np.array(list(itertools.permutations([1,2,3,4])))
-    order=[[1,2,3,4]]
+    orders=[[4,1,3,2]]
     for order in orders:
         compute_fullpath(order)
     pass
@@ -481,11 +481,11 @@ def compute_fullpath(order):
             obs.append([gate[0]-obs_buffer,gate[1]+0.2,gate_rad])
             obs.append([gate[0]-obs_buffer,gate[1]-0.2,gate_rad])
 
-            obs.append([gate[0]+obs_buffer,gate[1]+0.3,gate_rad]) #+0.4 to make it wider
-            obs.append([gate[0]+obs_buffer,gate[1]-0.3,gate_rad])
+            obs.append([gate[0]+obs_buffer,gate[1]+0.4,gate_rad+0.05]) #+0.4 to make it wider
+            obs.append([gate[0]+obs_buffer,gate[1]-0.4,gate_rad+0.05])
 
-            obs.append([gate[0]-obs_buffer,gate[1]+0.3,gate_rad])
-            obs.append([gate[0]-obs_buffer,gate[1]-0.3,gate_rad])
+            obs.append([gate[0]-obs_buffer,gate[1]+0.4,gate_rad+0.05])
+            obs.append([gate[0]-obs_buffer,gate[1]-0.4,gate_rad+0.05])
         else: #for horizontal gate
             obs.append([gate[0]+0.2,gate[1],gate_rad])  # gate obstacle location
             obs.append([gate[0]-0.2,gate[1],gate_rad])
@@ -496,13 +496,14 @@ def compute_fullpath(order):
             obs.append([gate[0]+0.2,gate[1]-obs_buffer,gate_rad])
             obs.append([gate[0]-0.2,gate[1]-obs_buffer,gate_rad])
 
-            obs.append([gate[0]+0.3,gate[1]+obs_buffer,gate_rad])
-            obs.append([gate[0]-0.3,gate[1]+obs_buffer,gate_rad])
+            obs.append([gate[0]+0.4,gate[1]+obs_buffer,gate_rad+0.05])
+            obs.append([gate[0]-0.4,gate[1]+obs_buffer,gate_rad+0.05])
 
-            obs.append([gate[0]+0.3,gate[1]-obs_buffer,gate_rad])
-            obs.append([gate[0]-0.3,gate[1]-obs_buffer,gate_rad])
+            obs.append([gate[0]+0.4,gate[1]-obs_buffer,gate_rad+0.05])
+            obs.append([gate[0]-0.4,gate[1]-obs_buffer,gate_rad+0.05])
     obstacles_rad=0.06
     obstacles_rad=0.2
+    obstacles_rad=0.15
     obstacles_noise=0.2
 
     obs_rad_corrupted=obstacles_rad+obstacles_noise
