@@ -53,7 +53,7 @@ except ImportError:
 # REPLACE THIS (END) ####
 #########################
 LIFT_DURATION = 0.5
-LAND_DURATION = 1.5
+LAND_DURATION = 1.0
 END_CUSHION_TIME = 1.5
 
 
@@ -177,7 +177,7 @@ class Controller():
         self.ref_y = ref_y
         self.ref_z = ref_z
 
-        waypoints, lift_height = ecu.load_waypoints()
+        waypoints, lift_height, _ = ecu.load_waypoints()
         self.lift_height = lift_height
         self.waypoints = waypoints
 

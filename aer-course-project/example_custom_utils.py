@@ -12,25 +12,27 @@ import random
 import math
 
 LIFT_HEIGHT = 0.1
-LAND_HEIGHT = 0.05
+LAND_HEIGHT = 0.1
 
 
 ASCENT_TIME = 1.1
-DESCENT_TIME = 1.06
+DESCENT_TIME = 3.06
 FIRST_SEGMENT_STEEPNESS = 0.5
 THIRD_SEGMENT_STEEPNESS = 1.0
 
 STEP = 0.3 #DISTANCE FROM GAT TO BUFFER WAYPOINTS
-DUR_CURVE1 = 1.0
-DUR_CURVE2 = 2
-DUR_CURVE3 = 1.0
+DUR_CURVE1 = 3.0
+DUR_CURVE2 = 3
+DUR_CURVE3 = 3.0
 
+ORDER = [1, 2, 3, 4] # Gate Order
 
+ASCENT_RADIUS = 0.8
 
 
 ADDITIONAL_OBS_BUFFER = 0.01
 random.seed(1217)
-SHOW_PLOTS = False
+SHOW_PLOTS = True
 
 def extract_yaml():
     """
@@ -66,37 +68,6 @@ def get_trajectory():
     ref_z = data[:, 3]
     return t_scaled, ref_x, ref_y, ref_z
     
-def load_waypoints():
-    cfg = extract_yaml()
-    full_gates = np.array(cfg['gates'])[:, (0, 1, 5)]
-    init_x = cfg['init_state']['init_x']
-    init_y = cfg['init_state']['init_y']
-    init_z = LIFT_HEIGHT
-    endpoint = cfg['task_info']['stabilization_goal'] #len 3 list
-    endpoint[2] = LAND_HEIGHT
-    waypoints = [(init_x, init_y, init_z)]
-    # heights = np.full((gates.shape[0], 1), 1.0)
-    # gates = np.concatenate((gates, heights), axis=1)
-    # for gate in gates:
-    gate_height = 1.0
-    for gate in full_gates:
-        x, y, yaw = gate
-        before_x = round(x + STEP * np.sin(yaw), 1)
-        before_y = round(y - STEP * np.cos(yaw), 1)
-        after_x = round(x - STEP * np.sin(yaw), 1)
-        after_y = round(y + STEP * np.cos(yaw), 1)
-        before_gate = [before_x, before_y, gate_height]
-        at_gate = [x, y, gate_height]
-        after_gate = [after_x, after_y, gate_height]
-        waypoints.append(before_gate)
-        waypoints.append(at_gate)
-        waypoints.append(after_gate)
-
-    waypoints.append(endpoint)
-    waypoints = np.array(waypoints)
-    # print(waypoints)
-    return waypoints, LIFT_HEIGHT
-
 
 def write_arrays_to_csv(array):
     with open('trajectory.csv', 'w', newline='') as csvfile:
@@ -129,7 +100,6 @@ def fit_curve(duration, offset, dt, points):
     traj = np.column_stack((time, x_interp, y_interp, z_interp))
     return np.round(traj, decimals=3)
 
-
 def to_first_waypoint(dt, start_and_endpoints):
     start = start_and_endpoints[0]
     end = start_and_endpoints[1]
@@ -148,19 +118,212 @@ def to_first_waypoint(dt, start_and_endpoints):
     
     return traj
 
-def construct_obst_bounds(obst_cent):
+def to_ground(start_time, dt, start_and_endpoints):
+    start = start_and_endpoints[0]
+    end = start_and_endpoints[1]
+    print("descent from: ", start)
+    print("descent to from: ", end, "\n\n\n\n")
+
+    # Step size for the additional points
+    spacing = THIRD_SEGMENT_STEEPNESS
+
+    # Add additional points
+    extra_point1 = np.array([start[0], start[1]-spacing, start[2]])
+    extra_point2 = np.array([end[0] + spacing, end[1], end[2]-spacing])
+
+    points = np.vstack((extra_point1, start, end, extra_point2))
+    traj = fit_curve(DESCENT_TIME, start_time, dt, points)
+    return traj
+
+def get_distance(prior, dest):
+    x_p, y_p = prior
+    x_d, y_d = dest
+    dx = x_d - x_p
+    dy = y_d - y_p
+    dist = math.sqrt((dx)**2 + (dy)**2)
+    return dist
+    
+    
+
+class Gate():
+    def __init__(self, row_info, gate_id):
+        self.row_info = row_info
+        self.gate_id = gate_id
+        self.reversed = False
+        x, y, yaw = row_info
+        self.centre = (x, y)
+        self.yaw = yaw
+        before_x = round(x + STEP * np.sin(yaw), 1)
+        before_y = round(y - STEP * np.cos(yaw), 1)
+        after_x = round(x - STEP * np.sin(yaw), 1)
+        after_y = round(y + STEP * np.cos(yaw), 1)
+        self.before = (before_x, before_y)
+        self.after = (after_x, after_y)
+
+    def apply_reverse(self, bool_reverse):
+        if bool_reverse:
+            temp = self.after
+            self.after = self.before
+            self.before = temp
+            self.reversed = True
+        return
+    def copy(self):
+        return Gate(self.row_info, self.gate_id)
+
+def intermediate_points(start, end):
+    halfway_x = (start[0] + end[0]) / 2
+    halfway_y = (start[1] + end[1]) / 2
+    halfway = (halfway_x, halfway_y)
+    
+    three_quarters_x = start[0] + 0.75 * (end[0] - start[0])
+    three_quarters_y = start[1] + 0.75 * (end[1] - start[1])
+    three_quarters = (three_quarters_x, three_quarters_y)
+    
+    return halfway, three_quarters
+
+
+
+def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
+    waypoints = []
+    min_dist = float('inf')
+    # init_z = LIFT_HEIGHT
+    # endpoint[2] = LAND_HEIGHT
+
+    for i in range(16):
+        binary_mask = format(i, '04b')  # Convert the integer to binary_mask with 4 bits
+        reverse_bool_array = np.array(list(map(int, list(binary_mask))))
+        temp_gates = []
+        for j in range(len(ref_gates)):
+            bool_gate = ref_gates[j].copy()
+            if reverse_bool_array[j] == 1:
+                bool_gate.apply_reverse()
+            temp_gates.append(bool_gate)
+        total_dist = get_distance(startpoint, temp_gates[0].before)
+
+        for j in range(3):
+            total_dist += get_distance(temp_gates[j].after, temp_gates[j+1].before)
+        
+        total_dist += get_distance(temp_gates[3].after, endpoint)
+        if total_dist < min_dist:
+            min_dist = total_dist
+            best_gate_orientation = temp_gates
+    
+    first_target = best_gate_orientation[0].before
+    first_RRT_traj = RRT_star_straight_lines(startpoint, first_target, obs_bounds)
+
+    for coordinates in first_RRT_traj:
+        cur_dist =  get_distance(startpoint, (coordinates[0], coordinates[1]))
+        if cur_dist< ASCENT_RADIUS:
+            ascent_coordinates = coordinates
+        if cur_dist< ASCENT_RADIUS+0.05:
+            first_after = coordinates
+        if cur_dist< ASCENT_RADIUS+0.1:
+            sec_after = coordinates
+    halfway, three_quartersintermediate_points(start, end)
+    
+
+
+
+
+
+
+
+
+
+
+
+
+    return waypoints
+
+def load_waypoints(order):
+    order = np.array(order)-1
+    cfg = extract_yaml()
+    full_gates = np.array(cfg['gates'])[:, (0, 1, 5)]
+    init_x = cfg['init_state']['init_x']
+    init_y = cfg['init_state']['init_y']
+    # init_z = LIFT_HEIGHT
+    endpoint = cfg['task_info']['stabilization_goal'][:2] #originally len 3 list
+    # endpoint[2] = LAND_HEIGHT
+    startpoint = (init_x, init_y)
+    # waypoints = [(init_x, init_y, init_z)]
+    # heights = np.full((gates.shape[0], 1), 1.0)
+    # gates = np.concatenate((gates, heights), axis=1)
+    # for gate in gates:
+    gate_height = 1.0
+    gate_obs = []
+    gate_half_width = 0.22
+
+
+    for gate in full_gates:
+        x, y, yaw = gate
+        # before_x = round(x + STEP * np.sin(yaw), 1)
+        # before_y = round(y - STEP * np.cos(yaw), 1)
+        # after_x = round(x - STEP * np.sin(yaw), 1)
+        # after_y = round(y + STEP * np.cos(yaw), 1)
+        # before_gate = [before_x, before_y, gate_height]
+        # at_gate = [x, y, gate_height]
+        # after_gate = [after_x, after_y, gate_height]
+        # waypoints.append(before_gate)
+        # waypoints.append(at_gate)
+        # waypoints.append(after_gate)
+        
+
+        right_x = round(x + gate_half_width * np.cos(yaw), 1)
+        right_y = round(y - gate_half_width * np.sin(yaw), 1)
+        left_x = round(x - gate_half_width * np.cos(yaw), 1)
+        left_y = round(y + gate_half_width * np.sin(yaw), 1)
+        right_obs = [right_x, right_y]
+        left_obs = [left_x, left_y]
+        gate_obs.append(right_obs)
+        gate_obs.append(left_obs)
+
+    obst_cent = np.array(cfg['obstacles'])[:, :2]
+    obs_bounds = construct_obst_bounds(obst_cent, gate_obs)
+
+
+    ref_gates = []
+    for i in range(len(full_gates)):
+        ref_gates.append(Gate(full_gates[order[i]], [order[i]+1]))
+
+    
+    waypoints = order_waypoints(startpoint, endpoint, ref_gates, obs_bounds)
+
+    # waypoints.append(endpoint)
+    # waypoints = np.array(waypoints)
+    # print(waypoints)
+    # return waypoints, LIFT_HEIGHT, obs_bounds
+
+
+def construct_obst_bounds(obst_cent, gate_obs):
+    gate_obs = np.array(gate_obs)
+    print("gate_obs shape: ", gate_obs.shape)
+    print("obst_cent shape: ", obst_cent.shape)
     crazflie_width = 0.13
     noise = 0.2 + crazflie_width/2 + ADDITIONAL_OBS_BUFFER #obstacle can be moved by this much in x or y
 
     # Create a new 3D matrix
-    obs_bounds = np.zeros((obst_cent.shape[0], obst_cent.shape[1], 2))
+    obs_bounds = np.zeros((obst_cent.shape[0], 2, 2))
+    print("obs_bounds shape: ", obs_bounds.shape)
 
     # Iterate through each element of the original matrix and add/subtract the threshold
     for i in range(obst_cent.shape[0]):
         for j in range(obst_cent.shape[1]):
             obs_bounds[i, 0, j] = obst_cent[i, j] - noise
             obs_bounds[i, 1, j] = obst_cent[i, j] + noise
+    gate_obs_bounds = np.zeros((gate_obs.shape[0], 2, 2))
+    gate_pillar_width = 0.05 + crazflie_width/2 + ADDITIONAL_OBS_BUFFER
+    for i in range(gate_obs.shape[0]):
+        for j in range(gate_obs.shape[1]):
+            gate_obs_bounds[i, 0, j] = gate_obs[i, j] - gate_pillar_width
+            gate_obs_bounds[i, 1, j] = gate_obs[i, j] + gate_pillar_width
+    print("gate_obs_bounds shape: ", gate_obs_bounds.shape)
+    obs_bounds = np.vstack((obs_bounds, gate_obs_bounds))
+    print("obs_bounds shape: ", obs_bounds.shape)
+
     return obs_bounds
+
+
+
 
 def does_collide(coord_array, obs_bounds):
     is_colliding = np.any((obs_bounds[:, 0, 0] <= coord_array[0]) & 
@@ -169,7 +332,7 @@ def does_collide(coord_array, obs_bounds):
                     (coord_array[1] <= obs_bounds[:, 1, 1]))
     return is_colliding
 
-def RRT_star_solver(start_time, dt, flat_waypoints, cfg):
+def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
     # flat_waypoints =np.array([[ 0.4, -2.5],
     #         [ 0.5, -2.5],
     #         [ 0.6, -2.5],
@@ -182,8 +345,8 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg):
     #         [-0.5,  1.4],
     #         [-0.5,  1.5],
     #         [-0.5,  1.6]])
-    obst_cent = np.array(cfg['obstacles'])[:, :2]
-    obs_bounds = construct_obst_bounds(obst_cent)
+    # obst_cent = np.array(cfg['obstacles'])[:, :2]
+    # obs_bounds = construct_obst_bounds(obst_cent, gate_obs)
 
     first_curve, second_start = shortest_curved_path(flat_waypoints[:6], DUR_CURVE1, start_time, dt, obs_bounds, include_end=False)
 
@@ -518,25 +681,10 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
 
 
 
-def to_ground(start_time, dt, start_and_endpoints):
-    start = start_and_endpoints[0]
-    end = start_and_endpoints[1]
-    print("descent from: ", start)
-    print("descent to from: ", end, "\n\n\n\n")
 
-    # Step size for the additional points
-    spacing = THIRD_SEGMENT_STEEPNESS
-
-    # Add additional points
-    extra_point1 = np.array([start[0], start[1]-spacing, start[2]])
-    extra_point2 = np.array([end[0] + spacing, end[1], end[2]-spacing])
-
-    points = np.vstack((extra_point1, start, end, extra_point2))
-    traj = fit_curve(DESCENT_TIME, start_time, dt, points)
-    return traj
 
 def determine_trajectory():
-    waypoints, _ = load_waypoints()
+    waypoints, _, obs_bounds = load_waypoints(ORDER)
     flat_waypoints = waypoints[1:-1, :2]
     cfg = extract_yaml()
     ctrl_freq = cfg['ctrl_freq']
@@ -546,7 +694,7 @@ def determine_trajectory():
     start_time = last_time_p1 + dt
     print("\n\n\n")
 
-    middle_2d_traj = RRT_star_solver(start_time, dt, flat_waypoints, cfg)
+    middle_2d_traj = RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds)
     last_time_p2 = middle_2d_traj[-1, 0]
     start_time = last_time_p2 + dt
     end_3d_traj = to_ground(start_time, dt, waypoints[-2:])
