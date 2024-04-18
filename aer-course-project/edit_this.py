@@ -26,6 +26,7 @@ Tips:
         2) cmdFirmware
 
 """
+TESTING = True
 import numpy as np
 
 from collections import deque
@@ -121,7 +122,8 @@ class Controller():
         plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
-        draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        if not TESTING:
+            draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
 
     def planning(self, use_firmware, initial_info):

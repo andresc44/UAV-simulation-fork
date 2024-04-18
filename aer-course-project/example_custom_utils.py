@@ -12,8 +12,10 @@ import random
 import math
 from scipy.integrate import quad
 
-ORDER = [4, 1, 2, 3] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 0.95 #m/s
+TESTING = True
+
+ORDER = [1, 2, 3, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
+DRONE_SPEED = 0.35 #m/s
 STEP = 0.3 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
 
@@ -36,7 +38,12 @@ ITER_STEP_SIZE = 1000 #If no route found at FIRST_RETURN_ITER, check again every
 MAX_ITER = 4000 #Maximum number of nodes to try making  
 STD_DEV_SAMPLING = 0.7
 
-YAML_PATH = 'config.yaml'
+if TESTING:
+    YAML_PATH = 'aer-course-project/getting_started.yaml'
+    CSV_PATH = 'aer-course-project/trajectory.csv'
+else:
+    YAML_PATH = 'getting_started.yaml'
+    CSV_PATH = 'trajectory.csv'
 random.seed(1217)
 SHOW_PLOTS = False
 SHOW_SAMPLES_PLOTS = False
@@ -66,7 +73,7 @@ def get_trajectory():
         tuple: Tuple containing arrays of t_scaled, ref_x, ref_y, and ref_z.
     """
     # Read the CSV file
-    data = np.genfromtxt('trajectory.csv', delimiter=',', dtype=float)
+    data = np.genfromtxt(CSV_PATH, delimiter=',', dtype=float)
 
     # Extract specific columns
     t_scaled = data[:, 0]
@@ -76,7 +83,7 @@ def get_trajectory():
     return t_scaled, ref_x, ref_y, ref_z
     
 def write_arrays_to_csv(array):
-    with open('trajectory.csv', 'w', newline='') as csvfile:
+    with open(CSV_PATH, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
 
         for row in array:
