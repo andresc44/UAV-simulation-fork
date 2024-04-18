@@ -436,38 +436,38 @@ class BenchmarkEnv(gym.Env):
             c_value = self.constraints.get_values(self)
             info["constraint_values"] = c_value
             if self.constraints.is_violated(self, c_value=c_value):
-                if (self.cnstr_violation == False):
-                # if (True):
-                    print("\n\n")
-                    if c_value[0] >= 0:
-                        print("\033[1;31m" + "front_left motor input below threshold 0.02816169" + "\033[0m")
-                    elif c_value[1] >= 0:
-                        print("\033[1;31m" + "front_left motor input above threshold 0.14834145" + "\033[0m")
-                    elif c_value[2] >= 0:
-                        print("\033[1;31m" + "back_left motor input below threshold 0.02816169" + "\033[0m")
-                    elif c_value[3] >= 0:
-                        print("\033[1;31m" + "back_left motor input above threshold 0.14834145" + "\033[0m")
-                    elif c_value[4] >= 0:
-                        print("\033[1;31m" + "back_right motor input below threshold 0.02816169" + "\033[0m")
-                    elif c_value[5] >= 0:
-                        print("\033[1;31m" + "back_right motor input above threshold 0.14834145" + "\033[0m")
-                    elif c_value[6] >= 0:
-                        print("\033[1;31m" + "front_right motor input below threshold 0.02816169" + "\033[0m")
-                    elif c_value[7] >= 0:
-                        print("\033[1;31m" + "front_right motor input above threshold 0.14834145" + "\033[0m")
-                    elif c_value[8] >= 0:
-                        print("\033[1;31m" + "x direction beyond min_x -3.5" + "\033[0m")
-                    elif c_value[9] >= 0:
-                        print("\033[1;31m" + "x direction beyond max_x 3.5" + "\033[0m")
-                    elif c_value[10] >= 0:
-                        print("\033[1;31m" + "y direction beyond min_y -3.5" + "\033[0m")
-                    elif c_value[11] >= 0:
-                        print("\033[1;31m" + "y direction beyond max_y 3.5" + "\033[0m")
-                    elif c_value[12] >= 0:
-                        print("\033[1;31m" + "z direction beyond min_z -0.1" + "\033[0m")
-                    elif c_value[13] >= 0:
-                        print("\033[1;31m" + "z direction beyond max_z 2" + "\033[0m")
-                    print("\n\n")
+                # if (self.cnstr_violation == False):
+                # # if (True):
+                #     print("\n\n")
+                #     if c_value[0] >= 0:
+                #         print("\033[1;31m" + "front_left motor input below threshold 0.02816169" + "\033[0m")
+                #     elif c_value[1] >= 0:
+                #         print("\033[1;31m" + "front_left motor input above threshold 0.14834145" + "\033[0m")
+                #     elif c_value[2] >= 0:
+                #         print("\033[1;31m" + "back_left motor input below threshold 0.02816169" + "\033[0m")
+                #     elif c_value[3] >= 0:
+                #         print("\033[1;31m" + "back_left motor input above threshold 0.14834145" + "\033[0m")
+                #     elif c_value[4] >= 0:
+                #         print("\033[1;31m" + "back_right motor input below threshold 0.02816169" + "\033[0m")
+                #     elif c_value[5] >= 0:
+                #         print("\033[1;31m" + "back_right motor input above threshold 0.14834145" + "\033[0m")
+                #     elif c_value[6] >= 0:
+                #         print("\033[1;31m" + "front_right motor input below threshold 0.02816169" + "\033[0m")
+                #     elif c_value[7] >= 0:
+                #         print("\033[1;31m" + "front_right motor input above threshold 0.14834145" + "\033[0m")
+                #     elif c_value[8] >= 0:
+                #         print("\033[1;31m" + "x direction beyond min_x -3.5" + "\033[0m")
+                #     elif c_value[9] >= 0:
+                #         print("\033[1;31m" + "x direction beyond max_x 3.5" + "\033[0m")
+                #     elif c_value[10] >= 0:
+                #         print("\033[1;31m" + "y direction beyond min_y -3.5" + "\033[0m")
+                #     elif c_value[11] >= 0:
+                #         print("\033[1;31m" + "y direction beyond max_y 3.5" + "\033[0m")
+                #     elif c_value[12] >= 0:
+                #         print("\033[1;31m" + "z direction beyond min_z -0.1" + "\033[0m")
+                #     elif c_value[13] >= 0:
+                #         print("\033[1;31m" + "z direction beyond max_z 2" + "\033[0m")
+                #     print("\n\n")
 
                 self.cnstr_violation = True
 
