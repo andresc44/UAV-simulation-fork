@@ -26,7 +26,7 @@ Tips:
         2) cmdFirmware
 
 """
-TESTING = True
+TESTING = False
 import numpy as np
 
 from collections import deque
@@ -53,7 +53,7 @@ except ImportError:
 #########################
 # REPLACE THIS (END) ####
 #########################
-LIFT_DURATION = 0.5 #seconds for liftoff to 0.1m
+LIFT_DURATION = 0.8 #seconds for liftoff to 0.1m
 LAND_DURATION = 2.0 # seconds for landing
 END_CUSHION_TIME = 2.0 # drone catch up time
 

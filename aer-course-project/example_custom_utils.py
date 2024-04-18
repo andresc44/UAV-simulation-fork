@@ -12,16 +12,16 @@ import random
 import math
 from scipy.integrate import quad
 
-TESTING = True
+TESTING = False
 
-ORDER = [1, 2, 3, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 0.35 #m/s
-STEP = 0.3 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
+ORDER = [2, 1, 3, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
+DRONE_SPEED = 0.6 #m/s
+STEP = 0.4 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
 
 ASCENT_RADIUS = 0.8 # How far away to be when reaching target of 1m
 POLY_DEGREE = 8 #How much to fit to RRT* path
-GATE_STRAIGHT_WEIGHT = 20 #How vital is it to go more straight during gate
+GATE_STRAIGHT_WEIGHT = 30 #How vital is it to go more straight during gate
 
 ADDITIONAL_OBS_BUFFER = 0.2 #Pretty high, could lower
 GATE_BUFFER = 0.1 #How to treat as obstacle, could increase
