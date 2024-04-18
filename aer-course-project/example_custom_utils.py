@@ -481,7 +481,7 @@ def compute_fullpath(order):
             obs.append([gate[0]-obs_buffer,gate[1]+0.2,gate_rad])
             obs.append([gate[0]-obs_buffer,gate[1]-0.2,gate_rad])
 
-            obs.append([gate[0]+obs_buffer,gate[1]+0.3,gate_rad])
+            obs.append([gate[0]+obs_buffer,gate[1]+0.3,gate_rad]) #+0.4
             obs.append([gate[0]+obs_buffer,gate[1]-0.3,gate_rad])
 
             obs.append([gate[0]-obs_buffer,gate[1]+0.3,gate_rad])

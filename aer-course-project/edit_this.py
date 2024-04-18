@@ -117,7 +117,7 @@ class Controller():
         plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
-        # draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
 
     def planning(self, use_firmware, initial_info):
@@ -138,18 +138,20 @@ class Controller():
 
 
         # c = np.fromfile('test_path.dat', dtype=float)
-        a = np.load('test_path0.npy')
+        load_folder='Path_files/path_2134/'
+        
+        a = np.load(load_folder+'test_path0.npy')
 
-        b = np.load('test_path1.npy')
+        b = np.load(load_folder+'test_path1.npy')
         # b = np.delete(b, (0), axis=0)
 
-        c = np.load('test_path2.npy')
+        c = np.load(load_folder+'test_path2.npy')
         # c = np.delete(c, (0), axis=0)
 
-        d = np.load('test_path3.npy')
+        d = np.load(load_folder+'test_path3.npy')
         # d = np.delete(d, (0), axis=0)
 
-        e = np.load('test_path_final.npy')
+        e = np.load(load_folder+'test_path_final.npy')
         # e = np.delete(e, (0), axis=0)
         pathhhh=[a,b,c,d,e]
         path=np.vstack((a,b,c,d,e))
@@ -170,7 +172,7 @@ class Controller():
                 # duration = 2
                 print(f"number of pts for {i}:::::::::::::::",self.waypoints.shape[0])
                 print("time needed this step:",self.waypoints.shape[0]/15)
-                duration = math.ceil(self.waypoints.shape[0]/15)+0.5
+                duration = math.ceil(self.waypoints.shape[0]/15)
                 self.time_needed+=duration
                 t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
                 self.ref_x = fx(t_scaled)
@@ -179,7 +181,7 @@ class Controller():
             else:
                 temp_waypoint=p
                 if i==4:
-                    temp_waypoint[-1,2]=0.7
+                    temp_waypoint[-1,2]=0.8
                     print(temp_waypoint)
 
                 
@@ -197,7 +199,7 @@ class Controller():
                     duration=temp_waypoint.shape[0]/15
                 else:
 
-                    duration = math.ceil(temp_waypoint.shape[0]/15)+0.5
+                    duration = math.ceil(temp_waypoint.shape[0]/15)
                 self.time_needed+=duration
 
                 temp_t_scaled=np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
