@@ -8,11 +8,11 @@ from mpl_toolkits.mplot3d import Axes3D
 #                    [ 0.2, -2.5, 1. ],
 #                    [ 0.5, -2.4, 1.1 ]])
 
-points = np.array([[-0.5,  1.6,  1. ],
-                    [-0.5,  2.,   0.1]])
+points = np.array([[-1.,  -3.,   0.1],
+                    [-0.299, -2.709,  1.]])
 
 # Step size for the additional points
-step = 1.5
+step = 0.5
 
 # Add additional points
 extra_point1 = np.array([points[0,0], points[0,1]-step, points[0,2]])

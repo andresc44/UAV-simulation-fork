@@ -53,8 +53,8 @@ except ImportError:
 # REPLACE THIS (END) ####
 #########################
 LIFT_DURATION = 0.5
-LAND_DURATION = 1.0
-END_CUSHION_TIME = 1.5
+LAND_DURATION = 2.0
+END_CUSHION_TIME = 2.0
 
 
 class Controller():

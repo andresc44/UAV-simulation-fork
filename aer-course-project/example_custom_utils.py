@@ -10,29 +10,36 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import random
 import math
+from scipy.integrate import quad
+
 
 LIFT_HEIGHT = 0.1
-LAND_HEIGHT = 0.1
-
-
-ASCENT_TIME = 1.1
-DESCENT_TIME = 3.06
 FIRST_SEGMENT_STEEPNESS = 0.5
-THIRD_SEGMENT_STEEPNESS = 1.0
 
-STEP = 0.3 #DISTANCE FROM GAT TO BUFFER WAYPOINTS
-DUR_CURVE1 = 3.0
-DUR_CURVE2 = 3
-DUR_CURVE3 = 3.0
+STEP = 0.3 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
+ORDER = [1, 4, 3, 2] # Gate Order
 
-ORDER = [1, 2, 3, 4] # Gate Order
-
+DRONE_SPEED = 1.0
 ASCENT_RADIUS = 0.8
+POLY_DEGREE = 8
+GATE_STRAIGHT_WEIGHT = 20
+
+ADDITIONAL_OBS_BUFFER = 0.2
+GATE_BUFFER = 0.1
+
+##TUNABLE PARAMETERS RRT*
+STEP_SIZE = 0.3 #Step size to take in direction of random point for new node
+BIAS = 0.2 #Probability of random point at the goal
+NEIGHBOUR_RADIUS = 1.0 #Size of radius to check for neighbour rewiring
+FIRST_RETURN_ITER = 500 #Try to return after X many iterations if a solution was found
+ITER_STEP_SIZE = 1000 #If no route found at FIRST_RETURN_ITER, check again every ITER_STEP_SIZE iterations
+MAX_ITER = 4000 #Maximum number of nodes to try making  
+STD_DEV_SAMPLING = 0.7
 
 
-ADDITIONAL_OBS_BUFFER = 0.01
 random.seed(1217)
 SHOW_PLOTS = True
+SHOW_SAMPLES_PLOTS = False
 
 def extract_yaml():
     """
@@ -77,16 +84,48 @@ def write_arrays_to_csv(array):
             writer.writerow(row)
 
 
-def fit_curve(duration, offset, dt, points):
+def fit_curve(offset, dt, points):
     # Extract x, y, and z coordinates
     x = points[:, 0]
     y = points[:, 1]
     z = points[:, 2]
 
+    degree = POLY_DEGREE
     # Fit 4th-degree polynomial to each dimension
-    coefficients_x = np.polyfit(np.arange(len(points)), x, 4)
-    coefficients_y = np.polyfit(np.arange(len(points)), y, 4)
-    coefficients_z = np.polyfit(np.arange(len(points)), z, 4)
+    coefficients_x = np.polyfit(np.arange(len(points)), x, degree)
+    coefficients_y = np.polyfit(np.arange(len(points)), y, degree)
+    coefficients_z = np.polyfit(np.arange(len(points)), z, degree)
+
+    t1 = 1.0
+    t2 = 2.0
+    
+      # Example value for t2
+    poly_function_x = np.poly1d(coefficients_x)
+    poly_function_y = np.poly1d(coefficients_y)
+    poly_function_z = np.poly1d(coefficients_z)
+    poly_derivative_x = np.polyder(poly_function_x)
+    poly_derivative_y = np.polyder(poly_function_y)
+    poly_derivative_z = np.polyder(poly_function_z)
+    
+
+    # Define a function to calculate the magnitude of velocity at a given time
+    def velocity_magnitude(t):
+        vx = poly_derivative_x(t)
+        vy = poly_derivative_y(t)
+        vz = poly_derivative_z(t)
+        return np.sqrt(vx**2 + vy**2 + vz**2)
+
+
+    # Integrate the velocity magnitude function over the time interval
+    total_distance, _ = quad(velocity_magnitude, t1, t2)
+
+    duration = total_distance / DRONE_SPEED
+    print("ascent distance: ", total_distance, "duration: ", duration)
+
+
+
+
+
 
     # Generate points for the curve
     intervals = int(duration // dt)
@@ -112,28 +151,28 @@ def to_first_waypoint(dt, start_and_endpoints):
     extra_point2 = np.array([end[0] + spacing, end[1], end[2]])
 
     points = np.vstack((extra_point1, start, end, extra_point2))
-    traj = fit_curve(ASCENT_TIME, 0, dt, points)
+    traj = fit_curve(0, dt, points)
     print("\n\n\n\nascent from: ", start)
     print("ascent to from: ", end)
     
     return traj
 
-def to_ground(start_time, dt, start_and_endpoints):
-    start = start_and_endpoints[0]
-    end = start_and_endpoints[1]
-    print("descent from: ", start)
-    print("descent to from: ", end, "\n\n\n\n")
+# def to_ground(start_time, dt, start_and_endpoints):
+#     start = start_and_endpoints[0]
+#     end = start_and_endpoints[1]
+#     print("descent from: ", start)
+#     print("descent to from: ", end, "\n\n\n\n")
 
-    # Step size for the additional points
-    spacing = THIRD_SEGMENT_STEEPNESS
+#     # Step size for the additional points
+#     spacing = THIRD_SEGMENT_STEEPNESS
 
-    # Add additional points
-    extra_point1 = np.array([start[0], start[1]-spacing, start[2]])
-    extra_point2 = np.array([end[0] + spacing, end[1], end[2]-spacing])
+#     # Add additional points
+#     extra_point1 = np.array([start[0], start[1]-spacing, start[2]])
+#     extra_point2 = np.array([end[0] + spacing, end[1], end[2]-spacing])
 
-    points = np.vstack((extra_point1, start, end, extra_point2))
-    traj = fit_curve(DESCENT_TIME, start_time, dt, points)
-    return traj
+#     points = np.vstack((extra_point1, start, end, extra_point2))
+#     traj = fit_curve(DESCENT_TIME, start_time, dt, points)
+#     return traj
 
 def get_distance(prior, dest):
     x_p, y_p = prior
@@ -160,31 +199,18 @@ class Gate():
         self.before = (before_x, before_y)
         self.after = (after_x, after_y)
 
-    def apply_reverse(self, bool_reverse):
-        if bool_reverse:
-            temp = self.after
-            self.after = self.before
-            self.before = temp
-            self.reversed = True
+    def apply_reverse(self):
+        temp = self.after
+        self.after = self.before
+        self.before = temp
+        self.reversed = True
         return
     def copy(self):
         return Gate(self.row_info, self.gate_id)
 
-def intermediate_points(start, end):
-    halfway_x = (start[0] + end[0]) / 2
-    halfway_y = (start[1] + end[1]) / 2
-    halfway = (halfway_x, halfway_y)
-    
-    three_quarters_x = start[0] + 0.75 * (end[0] - start[0])
-    three_quarters_y = start[1] + 0.75 * (end[1] - start[1])
-    three_quarters = (three_quarters_x, three_quarters_y)
-    
-    return halfway, three_quarters
-
 
 
 def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
-    waypoints = []
     min_dist = float('inf')
     # init_z = LIFT_HEIGHT
     # endpoint[2] = LAND_HEIGHT
@@ -219,23 +245,28 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
             first_after = coordinates
         if cur_dist< ASCENT_RADIUS+0.1:
             sec_after = coordinates
-    halfway, three_quartersintermediate_points(start, end)
+    ascent_coordinates = np.round(ascent_coordinates, decimals=3)
+    first_after = np.round(first_after, decimals=3)
+    sec_after = np.round(sec_after, decimals=3)
     
+    waypoints = [list(startpoint)]
+    
+    waypoints.extend([ascent_coordinates, first_after, sec_after])
 
+    for gate in best_gate_orientation:
+        waypoints.extend([gate.before, gate.centre, gate.after])
 
-
-
-
-
-
-
-
-
-
-
+    waypoints.append(endpoint)
+    waypoints = np.array(waypoints)
+    ones_col = np.ones(waypoints.shape[0]).reshape((waypoints.shape[0], 1))
+    waypoints = np.hstack((waypoints, ones_col))
+    waypoints[0, 2] = LIFT_HEIGHT
+    # print("waypoints: \n", waypoints)
     return waypoints
 
-def load_waypoints(order):
+
+def load_waypoints():
+    order=ORDER
     order = np.array(order)-1
     cfg = extract_yaml()
     full_gates = np.array(cfg['gates'])[:, (0, 1, 5)]
@@ -291,19 +322,16 @@ def load_waypoints(order):
     # waypoints.append(endpoint)
     # waypoints = np.array(waypoints)
     # print(waypoints)
-    # return waypoints, LIFT_HEIGHT, obs_bounds
+    return waypoints, LIFT_HEIGHT, obs_bounds
 
 
 def construct_obst_bounds(obst_cent, gate_obs):
     gate_obs = np.array(gate_obs)
-    print("gate_obs shape: ", gate_obs.shape)
-    print("obst_cent shape: ", obst_cent.shape)
     crazflie_width = 0.13
     noise = 0.2 + crazflie_width/2 + ADDITIONAL_OBS_BUFFER #obstacle can be moved by this much in x or y
 
     # Create a new 3D matrix
     obs_bounds = np.zeros((obst_cent.shape[0], 2, 2))
-    print("obs_bounds shape: ", obs_bounds.shape)
 
     # Iterate through each element of the original matrix and add/subtract the threshold
     for i in range(obst_cent.shape[0]):
@@ -311,14 +339,12 @@ def construct_obst_bounds(obst_cent, gate_obs):
             obs_bounds[i, 0, j] = obst_cent[i, j] - noise
             obs_bounds[i, 1, j] = obst_cent[i, j] + noise
     gate_obs_bounds = np.zeros((gate_obs.shape[0], 2, 2))
-    gate_pillar_width = 0.05 + crazflie_width/2 + ADDITIONAL_OBS_BUFFER
+    gate_pillar_width = 0.05 + crazflie_width/2 + GATE_BUFFER
     for i in range(gate_obs.shape[0]):
         for j in range(gate_obs.shape[1]):
             gate_obs_bounds[i, 0, j] = gate_obs[i, j] - gate_pillar_width
             gate_obs_bounds[i, 1, j] = gate_obs[i, j] + gate_pillar_width
-    print("gate_obs_bounds shape: ", gate_obs_bounds.shape)
     obs_bounds = np.vstack((obs_bounds, gate_obs_bounds))
-    print("obs_bounds shape: ", obs_bounds.shape)
 
     return obs_bounds
 
@@ -347,14 +373,22 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
     #         [-0.5,  1.6]])
     # obst_cent = np.array(cfg['obstacles'])[:, :2]
     # obs_bounds = construct_obst_bounds(obst_cent, gate_obs)
+    print("To first gate")
+    first_curve, second_start = shortest_curved_path(flat_waypoints[:6], start_time, dt, obs_bounds, last_segment=False)
 
-    first_curve, second_start = shortest_curved_path(flat_waypoints[:6], DUR_CURVE1, start_time, dt, obs_bounds, include_end=False)
+    print("To second gate")
+    second_curve, third_start = shortest_curved_path(flat_waypoints[3:9], (second_start+dt), dt, obs_bounds, last_segment=False)
 
-    second_curve, third_start = shortest_curved_path(flat_waypoints[3:9], DUR_CURVE2, (second_start+dt), dt, obs_bounds, include_end=False)
+    print("To third gate")
+    third_curve, fourth_start = shortest_curved_path(flat_waypoints[6:12], (third_start+dt), dt, obs_bounds, last_segment=False)
+    
+    print("To fourth gate")
+    fourth_curve, fifth_start = shortest_curved_path(flat_waypoints[9:15], (fourth_start+dt), dt, obs_bounds, last_segment=True)
 
-    third_curve, _ = shortest_curved_path(flat_waypoints[6:12], DUR_CURVE3, (third_start+dt), dt, obs_bounds, include_end=True)
+    print("To endpoint")
+    fifth_curve, _            = shortest_curved_path(flat_waypoints[12:16], (fifth_start+dt), dt, obs_bounds, last_segment=True)
 
-    total_traj = np.vstack((first_curve, second_curve, third_curve))
+    total_traj = np.vstack((first_curve, second_curve, third_curve, fourth_curve, fifth_curve))
 
 
     # value_to_test = np.array([1.4, -2.6])  # 2D value to test
@@ -363,17 +397,28 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
     # print(collides)
     return total_traj
 
-def shortest_curved_path(points, duration, time_offset, dt, obs_bounds, include_end):
+def shortest_curved_path(points, time_offset, dt, obs_bounds, last_segment):
     start_node_coord = points[2]
     end_node_coord = points[3]
+    print("sending coords: ", start_node_coord, end_node_coord)
 
 
     straight_line_traj = RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds) #N x 2
-    full_traj = np.vstack((points[:2], straight_line_traj, points[5:]))
+    RRT_len = straight_line_traj.shape[0]
+    # print("solution shape: ", straight_line_traj.shape)
+    straight_segment_weight = GATE_STRAIGHT_WEIGHT
+    straight_seg1 = np.linspace(points[0], points[2], straight_segment_weight)
+    if last_segment:
+        full_traj = np.vstack((straight_seg1, straight_line_traj))
+    else:
+        straight_seg2 = np.linspace(points[3], points[5], straight_segment_weight)
+        full_traj = np.vstack((straight_seg1, straight_line_traj, straight_seg2))
     x_traj = full_traj[:, 0]
     y_traj = full_traj[:, 1]
 
-    degree = 4
+    degree = POLY_DEGREE
+    # if RRT_len < 50:
+    #     degree = 4
     coefficients_x = np.polyfit(np.arange(len(full_traj)), x_traj, degree)
     coefficients_y = np.polyfit(np.arange(len(full_traj)), y_traj, degree)
 
@@ -381,14 +426,32 @@ def shortest_curved_path(points, duration, time_offset, dt, obs_bounds, include_
     poly_function_x = np.poly1d(coefficients_x)
     poly_function_y = np.poly1d(coefficients_y)
 
+    t1 = 0.0
+    if last_segment: t2 = len(full_traj)-1
+    else: t2 = len(full_traj)- 1 - straight_segment_weight
+    
+      # Example value for t2
+
+    poly_derivative_x = np.polyder(poly_function_x)
+    poly_derivative_y = np.polyder(poly_function_y)
+
+    # Define a function to calculate the magnitude of velocity at a given time
+    def velocity_magnitude(t):
+        vx = poly_derivative_x(t)
+        vy = poly_derivative_y(t)
+        return np.sqrt(vx**2 + vy**2)
+
+
+    # Integrate the velocity magnitude function over the time interval
+    total_distance, _ = quad(velocity_magnitude, t1, t2)
+
+    print("Distance along the polygonal path:", total_distance, "t2: ", len(full_traj)-1)
+    duration = total_distance / DRONE_SPEED
+    print("duration: ", duration, "\n\n")
+
     # Evaluate the polynomial functions to get the fitted x and y values
     intervals = int(duration // dt)
-    if include_end:
-        t = np.linspace(0, len(full_traj)-1, intervals+1)
-        
-    else:
-        t = np.linspace(0, len(full_traj)-3, intervals+1)
-
+    t = np.linspace(t1, t2, intervals+1)
     fitted_x = poly_function_x(t)
     fitted_y = poly_function_y(t)
     time = np.arange(0, len(fitted_x) * dt, dt)
@@ -396,6 +459,32 @@ def shortest_curved_path(points, duration, time_offset, dt, obs_bounds, include_
     last_time = time[-1]
 
     traj = np.column_stack((time, fitted_x, fitted_y))
+
+    if SHOW_PLOTS:
+        plt.plot(x_traj, y_traj, label='Original Trajectory')
+        plt.plot(fitted_x, fitted_y, label='Fitted Polynomial Trajectory', linestyle='--')
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        plt.title('Trajectory in X-Y Plane')
+        plt.legend()
+        plt.grid(True)
+        plt.xlim(-3.5, 3.5)
+        plt.ylim(-3.5, 3.5)
+        plt.show()
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
     return np.round(traj, decimals=3), last_time
 
 
@@ -486,16 +575,7 @@ class Node():
         return Node((self.x, self.y), self.cost, self.short_cost, self.parent, self.path_x, self.path_y)
 
 
-def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
-
-    ##TUNABLE PARAMETERS
-    STEP_SIZE = 0.1 #Step size to take in direction of random point for new node
-    BIAS = 0.1 #Probability of random point at the goal
-    NEIGHBOUR_RADIUS = 1.0 #Size of radius to check for neighbour rewiring
-    FIRST_RETURN_ITER = 300 #Try to return after X many iterations if a solution was found
-    ITER_STEP_SIZE = 100 #If no route found at FIRST_RETURN_ITER, check again every ITER_STEP_SIZE iterations
-    MAX_ITER = 500 #Maximum number of nodes to try making    
-            
+def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):     
     ##INITIALIZE VARIABLES
     if MAX_ITER > FIRST_RETURN_ITER:
         break_iters = list(range(FIRST_RETURN_ITER, MAX_ITER+1, ITER_STEP_SIZE))
@@ -509,11 +589,27 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
     node_list = [Node(start_node_coord)]
 
     #Line between start and end
-    m = (end_node_coord[1] - start_node_coord[1]) / (end_node_coord[0] - start_node_coord[0])
+    numer = (end_node_coord[1] - start_node_coord[1])
+    denom = (end_node_coord[0] - start_node_coord[0])
+    if denom == 0:
+        m = 999999
+    else: m = numer / denom
     c = start_node_coord[1] - m * start_node_coord[0]
-    std_dev = 0.3
+    std_dev = STD_DEV_SAMPLING
 
     goal_node = Node((end_node_coord[0], end_node_coord[1]))
+
+    
+    if SHOW_SAMPLES_PLOTS:
+        fig, ax = plt.subplots()
+        ax.set_xlim(-3.5, 3.5)
+        ax.set_ylim(-3.5, 3.5)
+        scatter = ax.scatter([], [])
+        plt.ion()
+        plt.show()
+        x_values = []
+        y_values = []
+
 
     #MAIN WHILE LOOP
     while i < MAX_ITER: #loop through each new iteration
@@ -530,7 +626,10 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
             # at_end = True
         else:
             # Sample a single point along the line using Gaussian distribution
-            x2 = np.random.uniform(start_node_coord[0], end_node_coord[0])
+            if start_node_coord[0] < end_node_coord[0]:
+                x2 = np.random.uniform(start_node_coord[0]-0.3, end_node_coord[0]+0.3)
+            else:
+                x2 = np.random.uniform(start_node_coord[0]+0.3, end_node_coord[0]-0.3)
             y2 = m * x2 + c + np.random.normal(0, std_dev)
         min_dis = float('inf')
         
@@ -539,12 +638,10 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
             #     continue
             dx = x2 - n.x
             dy = y2 - n.y
-
             if (abs(dx) > min_dis or abs(dy) > min_dis): #Dont calculate irrelevent distances
                 continue #next iter of for loop
 
             distance = math.sqrt((dx)**2 + (dy)**2)
-
             if STEP_SIZE < distance < min_dis: #new node at STEP_SIZE distance
                 closest_node = n
                 min_dis = distance
@@ -559,6 +656,13 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
         #sample point is defined
         samp_x = closest_node.x + (step_x)
         samp_y = closest_node.y + (step_y)
+
+        if SHOW_SAMPLES_PLOTS:
+            x_values.append(samp_x)
+            y_values.append(samp_y)
+            scatter.set_offsets(np.column_stack((x_values, y_values)))
+            plt.draw()
+
         samp_node = Node((samp_x, samp_y))
         if samp_node.is_state_identical(closest_node):
             continue
@@ -603,7 +707,9 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
                 new_child = child_n.copy()
                 new_child.propogate(best_node_config)
                 new_cost = new_child.cost
-                if new_cost < curr_cost: #if lower cost with rewiring
+                # cost_difference = curr_cost - new_cost
+                # if 0 < cost_difference < 0.05: #if lower cost with rewiring FIX !!
+                if new_cost < curr_cost:
                     if new_child.valid_path(obs_bounds):
                         node_list[node_index] = new_child
                         node_list = propagate_cost_change(node_list, curr_cost, new_child) #rewire and propogate costs
@@ -626,7 +732,15 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
                 node_list.append(final_node)
                 final_node_index = len(node_list) - 1 #index of the node at the goal position
                 is_first_time_at_goal = False
-
+    if SHOW_SAMPLES_PLOTS:
+        plt.ioff()
+        plt.show()
+    if SHOW_PLOTS:
+        for node in node_list:
+            if not node.parent is None:
+                xx = [node.x, node.parent.x]
+                yy = [node.y, node.parent.y]
+                plt.plot(xx, yy, 'k')
     if final_node_index != -1: #If a valid path was found
         temp_node = node_list[final_node_index]
         node_list = [temp_node]
@@ -639,13 +753,15 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
             if not n.path_x is None: #start node has no path preceding it
                 coords_x.extend(n.path_x.tolist())
                 coords_y.extend(n.path_y.tolist())
-        
-        coords = np.column_stack((coords_x, coords_y))
-        coords = np.unique(coords, axis=0)
-        if start_node_coord[0] > end_node_coord[0]: coords = coords[::-1]
+        coords_x = np.array(coords_x).reshape(-1,1)
+        coords_y = np.array(coords_y).reshape(-1,1)
+        # coords = np.column_stack((coords_x, coords_y))
+        coords = np.hstack((coords_x, coords_y))
+        _, unique_indices = np.unique(coords, axis=0, return_index=True)
+        coords = coords[np.sort(unique_indices)]
         print("start: ", coords[0])
         print("end: ", coords[-1])
-        print("\n\n")
+        # print("\n\n")
 
         if SHOW_PLOTS:
             # Plot obstacles
@@ -654,14 +770,16 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
                 top_right = obstacle[1]
                 width = top_right[0] - bottom_left[0]
                 height = top_right[1] - bottom_left[1]
-                rectangle = plt.Rectangle((bottom_left[0], bottom_left[1]), width, height, edgecolor='r', facecolor='none')
+                rectangle = plt.Rectangle((bottom_left[0], bottom_left[1]), width, height, edgecolor='b', facecolor='none')
                 plt.gca().add_patch(rectangle)
 
             # Plot scatter points
-            plt.scatter([point[0] for point in coords], [point[1] for point in coords], color='blue')
+            # plt.scatter([point[0] for point in coords], [point[1] for point in coords], color='blue', linestyle='dotted')
+            plt.plot([point[0] for point in coords], [point[1] for point in coords], 'ro-', label='Original Coordinates')
+            
             # Set plot limits
-            plt.xlim(-3, 3)
-            plt.ylim(-3, 3)
+            plt.xlim(-3.5, 3.5)
+            plt.ylim(-3.5, 3.5)
             # Set aspect ratio to be equal
             plt.gca().set_aspect('equal', adjustable='box')
             # Add labels and title
@@ -684,8 +802,8 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
 
 
 def determine_trajectory():
-    waypoints, _, obs_bounds = load_waypoints(ORDER)
-    flat_waypoints = waypoints[1:-1, :2]
+    waypoints, _, obs_bounds = load_waypoints()
+    flat_waypoints = waypoints[1:, :2]
     cfg = extract_yaml()
     ctrl_freq = cfg['ctrl_freq']
     dt = 1.0/float(ctrl_freq)
@@ -697,13 +815,13 @@ def determine_trajectory():
     middle_2d_traj = RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds)
     last_time_p2 = middle_2d_traj[-1, 0]
     start_time = last_time_p2 + dt
-    end_3d_traj = to_ground(start_time, dt, waypoints[-2:])
+    # end_3d_traj = to_ground(start_time, dt, waypoints[-2:])
 
     
     height_column = np.ones((middle_2d_traj.shape[0], 1), dtype=float)
     middle_2d_traj = np.hstack((middle_2d_traj, height_column))
 
-    full_traj = np.vstack((start_3d_traj, middle_2d_traj, end_3d_traj))
+    full_traj = np.vstack((start_3d_traj, middle_2d_traj))
     write_arrays_to_csv(full_traj)
 
 
