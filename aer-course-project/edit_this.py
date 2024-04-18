@@ -52,9 +52,9 @@ except ImportError:
 #########################
 # REPLACE THIS (END) ####
 #########################
-LIFT_DURATION = 0.5
-LAND_DURATION = 2.0
-END_CUSHION_TIME = 2.0
+LIFT_DURATION = 0.5 #seconds for liftoff to 0.1m
+LAND_DURATION = 2.0 # seconds for landing
+END_CUSHION_TIME = 2.0 # drone catch up time
 
 
 class Controller():

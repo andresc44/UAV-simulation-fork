@@ -12,20 +12,20 @@ import random
 import math
 from scipy.integrate import quad
 
-
-LIFT_HEIGHT = 0.1
-FIRST_SEGMENT_STEEPNESS = 0.5
-
+ORDER = [4, 1, 2, 3] # Gate Order, Slightly slower for 4, 3, 2, 1
+DRONE_SPEED = 0.95 #m/s
 STEP = 0.3 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
-ORDER = [1, 4, 3, 2] # Gate Order
 
-DRONE_SPEED = 1.0
-ASCENT_RADIUS = 0.8
-POLY_DEGREE = 8
-GATE_STRAIGHT_WEIGHT = 20
 
-ADDITIONAL_OBS_BUFFER = 0.2
-GATE_BUFFER = 0.1
+ASCENT_RADIUS = 0.8 # How far away to be when reaching target of 1m
+POLY_DEGREE = 8 #How much to fit to RRT* path
+GATE_STRAIGHT_WEIGHT = 20 #How vital is it to go more straight during gate
+
+ADDITIONAL_OBS_BUFFER = 0.2 #Pretty high, could lower
+GATE_BUFFER = 0.1 #How to treat as obstacle, could increase
+
+LIFT_HEIGHT = 0.1 #How high to go up vertically
+FIRST_SEGMENT_STEEPNESS = 0.5 # Don't change
 
 ##TUNABLE PARAMETERS RRT*
 STEP_SIZE = 0.3 #Step size to take in direction of random point for new node
@@ -36,9 +36,9 @@ ITER_STEP_SIZE = 1000 #If no route found at FIRST_RETURN_ITER, check again every
 MAX_ITER = 4000 #Maximum number of nodes to try making  
 STD_DEV_SAMPLING = 0.7
 
-
+YAML_PATH = 'config.yaml'
 random.seed(1217)
-SHOW_PLOTS = True
+SHOW_PLOTS = False
 SHOW_SAMPLES_PLOTS = False
 
 def extract_yaml():
@@ -49,7 +49,7 @@ def extract_yaml():
     """
 
     # Read the YAML configuration file
-    file_path = 'config.yaml'
+    file_path = YAML_PATH
     with open(file_path, 'r') as file:
         full_config = yaml.safe_load(file)
         cfg = full_config['quadrotor_config']
@@ -75,14 +75,12 @@ def get_trajectory():
     ref_z = data[:, 3]
     return t_scaled, ref_x, ref_y, ref_z
     
-
 def write_arrays_to_csv(array):
     with open('trajectory.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
 
         for row in array:
             writer.writerow(row)
-
 
 def fit_curve(offset, dt, points):
     # Extract x, y, and z coordinates
@@ -121,11 +119,6 @@ def fit_curve(offset, dt, points):
 
     duration = total_distance / DRONE_SPEED
     print("ascent distance: ", total_distance, "duration: ", duration)
-
-
-
-
-
 
     # Generate points for the curve
     intervals = int(duration // dt)
@@ -181,8 +174,6 @@ def get_distance(prior, dest):
     dy = y_d - y_p
     dist = math.sqrt((dx)**2 + (dy)**2)
     return dist
-    
-    
 
 class Gate():
     def __init__(self, row_info, gate_id):
@@ -207,8 +198,6 @@ class Gate():
         return
     def copy(self):
         return Gate(self.row_info, self.gate_id)
-
-
 
 def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
     min_dist = float('inf')
@@ -263,7 +252,6 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
     waypoints[0, 2] = LIFT_HEIGHT
     # print("waypoints: \n", waypoints)
     return waypoints
-
 
 def load_waypoints():
     order=ORDER
@@ -324,7 +312,6 @@ def load_waypoints():
     # print(waypoints)
     return waypoints, LIFT_HEIGHT, obs_bounds
 
-
 def construct_obst_bounds(obst_cent, gate_obs):
     gate_obs = np.array(gate_obs)
     crazflie_width = 0.13
@@ -347,9 +334,6 @@ def construct_obst_bounds(obst_cent, gate_obs):
     obs_bounds = np.vstack((obs_bounds, gate_obs_bounds))
 
     return obs_bounds
-
-
-
 
 def does_collide(coord_array, obs_bounds):
     is_colliding = np.any((obs_bounds[:, 0, 0] <= coord_array[0]) & 
@@ -404,7 +388,7 @@ def shortest_curved_path(points, time_offset, dt, obs_bounds, last_segment):
 
 
     straight_line_traj = RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds) #N x 2
-    RRT_len = straight_line_traj.shape[0]
+    # RRT_len = straight_line_traj.shape[0]
     # print("solution shape: ", straight_line_traj.shape)
     straight_segment_weight = GATE_STRAIGHT_WEIGHT
     straight_seg1 = np.linspace(points[0], points[2], straight_segment_weight)
@@ -595,10 +579,11 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
         m = 999999
     else: m = numer / denom
     c = start_node_coord[1] - m * start_node_coord[0]
+    # print(f"m: {m}, c: {c}")
     std_dev = STD_DEV_SAMPLING
 
     goal_node = Node((end_node_coord[0], end_node_coord[1]))
-
+    cushion = 0.3
     
     if SHOW_SAMPLES_PLOTS:
         fig, ax = plt.subplots()
@@ -609,7 +594,6 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
         plt.show()
         x_values = []
         y_values = []
-
 
     #MAIN WHILE LOOP
     while i < MAX_ITER: #loop through each new iteration
@@ -624,13 +608,20 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
         if prob < BIAS: #Bias towards goal
             x2, y2 = end_node_coord[0], end_node_coord[1]
             # at_end = True
-        else:
+        elif abs(m) < 1:
             # Sample a single point along the line using Gaussian distribution
             if start_node_coord[0] < end_node_coord[0]:
-                x2 = np.random.uniform(start_node_coord[0]-0.3, end_node_coord[0]+0.3)
+                x2 = np.random.uniform(start_node_coord[0]-cushion, end_node_coord[0]+cushion)
             else:
-                x2 = np.random.uniform(start_node_coord[0]+0.3, end_node_coord[0]-0.3)
+                x2 = np.random.uniform(start_node_coord[0]+cushion, end_node_coord[0]-cushion)
             y2 = m * x2 + c + np.random.normal(0, std_dev)
+        else:
+            if start_node_coord[1] < end_node_coord[1]:
+                y2 = np.random.uniform(start_node_coord[1]-cushion, end_node_coord[1]+cushion)
+            else:
+                y2 = np.random.uniform(start_node_coord[1]+cushion, end_node_coord[1]-cushion)
+            # y2 = m * x2 + c + np.random.normal(0, std_dev)
+            x2 = (y2 - c) / m + np.random.normal(0, std_dev)
         min_dis = float('inf')
         
         for n in node_list: #find closest node
@@ -791,14 +782,14 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
             plt.grid(True)
             plt.show()
 
-
         return coords
+    if SHOW_PLOTS:
+        plt.grid(True)
+        plt.xlim(-3.5, 3.5)
+        plt.ylim(-3.5, 3.5)
+        plt.show()
     print("No route found with given max_iter, consider increasing")
     return None
-    
-
-
-
 
 
 def determine_trajectory():
@@ -827,4 +818,3 @@ def determine_trajectory():
 
 if __name__ == '__main__':
     determine_trajectory()
-    # load_waypoints()
