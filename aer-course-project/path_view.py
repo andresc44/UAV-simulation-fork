@@ -4,7 +4,7 @@ import math
 
 
 
-load_folder='Path_files_copy/path_4132/'
+load_folder='Path_files_copy/path_2134/'
 
 
 
@@ -22,4 +22,27 @@ d = np.load(load_folder+'test_path3.npy')
 e = np.load(load_folder+'test_path_final.npy')
 
 
-print(d)
+# print(a)
+
+order=[1,1,2,2,1]
+load_folder=""
+path=[]
+for o in order:
+    load_folder+=f"{order[o]}"
+load_folder="Path_files/path_"+load_folder + "/"
+
+for i,o in enumerate(order):
+    path.append(np.load(load_folder+f'test_path{i}.npy'))
+path.append(np.load(load_folder+'test_path_final.npy'))
+print(load_folder)
+print(len(order))
+
+
+print(a[:10])
+
+
+a_Del=np.delete(a, [3,5], axis=0)
+print(a_Del[0:10])
+print(order-1)
+
+

@@ -117,7 +117,7 @@ class Controller():
         plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
-        # draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
 
     def planning(self, use_firmware, initial_info):
@@ -137,29 +137,31 @@ class Controller():
             waypoints = [(self.initial_obs[0], self.initial_obs[2], self.initial_obs[4])]
 
 
-        # c = np.fromfile('test_path.dat', dtype=float)
-        # load_folder='Path_files/path_2134/'
-        load_folder='aer-course-project/Path_files/path_4132/'
-        load_folder='Path_files_copy/path_4132/'
-
-
+        order=[4,4,3,2,1]
+        order=[2,1,3,4]
+        load_folder=""
+        for o in order:
+            load_folder+=f"{o}"
+        load_folder="Path_files/path_"+load_folder + "/"
+        # load_folder="aer-course-project/Path_files/path_"+load_folder + "/"
         
-        a = np.load(load_folder+'test_path0.npy')
+        # a = np.load(load_folder+'test_path0.npy')
 
-        b = np.load(load_folder+'test_path1.npy')
-        # b = np.delete(b, (0), axis=0)
+        # b = np.load(load_folder+'test_path1.npy')
+        # # b = np.delete(b, (0), axis=0)
 
-        c = np.load(load_folder+'test_path2.npy')
-        # c = np.delete(c, (0), axis=0)
+        # c = np.load(load_folder+'test_path2.npy')
+        # # c = np.delete(c, (0), axis=0)
 
-        d = np.load(load_folder+'test_path3.npy')
-        # d = np.delete(d, (0), axis=0)
+        # d = np.load(load_folder+'test_path3.npy')
+        # # d = np.delete(d, (0), axis=0)
 
-        e = np.load(load_folder+'test_path_final.npy')
-        # e = np.delete(e, (0), axis=0)
-        pathhhh=[a,b,c,d,e]
-        path=np.vstack((a,b,c,d,e))
-        print(type(b))
+        # e = np.load(load_folder+'test_path_final.npy')
+        # # e = np.delete(e, (0), axis=0)
+        pathhhh=[]
+        for i,o in enumerate(order):
+            pathhhh.append(np.load(load_folder+f'test_path{i}.npy'))
+        pathhhh.append(np.load(load_folder+'test_path_final.npy'))
         
         self.time_needed=0
         for i, p in enumerate(pathhhh):
@@ -167,8 +169,8 @@ class Controller():
             # t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
             if i==0:
                 self.waypoints=p
-                self.waypoints[0,2]=0.5
-                deg = 8
+                self.waypoints[0,2]=0.8
+                deg = 9
                 t = np.arange(self.waypoints.shape[0])
                 fx = np.poly1d(np.polyfit(t, self.waypoints[:,0], deg))
                 fy = np.poly1d(np.polyfit(t, self.waypoints[:,1], deg))
@@ -184,9 +186,10 @@ class Controller():
                 self.ref_z = fz(t_scaled)
             else:
                 temp_waypoint=p
-                if i==4:
+                
+                if i==len(order):
                     temp_waypoint[-1,2]=0.8
-                    print(temp_waypoint)
+                    # print(temp_waypoint)
 
                 
                 
@@ -253,7 +256,7 @@ class Controller():
         # control input iteration indicates the number of control inputs sent to the quadrotor
         iteration = int(time*self.CTRL_FREQ)
         
-        print(iteration,self.iteration==iteration)
+        # print(iteration,self.iteration==iteration)
         iteration=self.iteration
         self.iteration+=1
 
@@ -265,7 +268,7 @@ class Controller():
         # print(self.NOMINAL_GATES)
         
         if iteration == 0:
-            height = 0.5
+            height = 0.8
             duration = 2
 
             command_type = Command(2)  # Take-off.

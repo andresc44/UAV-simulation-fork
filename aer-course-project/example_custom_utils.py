@@ -80,16 +80,17 @@ class AStar():
         self.min_x, self.min_y, self.max_x, self.max_y = mapbound
         # print("number of obs!!!!!!!!!!!:",obstacles.shape)
         # print(self.min_x)
-        for i in range(self.min_x,self.max_x):
+        wall_res=10
+        for i in range(self.min_x,self.max_x,wall_res):
             ox.append(i)
             oy.append(self.min_y)
-        for i in range(self.min_y,self.max_y):
+        for i in range(self.min_y,self.max_y,wall_res):
             ox.append(self.max_x)
             oy.append(i)
-        for i in range(self.min_x,self.max_x):
+        for i in range(self.min_x,self.max_x,wall_res):
             ox.append(i)
             oy.append(self.max_y)
-        for i in range(self.min_y,self.max_y):
+        for i in range(self.min_y,self.max_y,wall_res):
             ox.append(self.min_x)
             oy.append(i)
 
@@ -243,7 +244,7 @@ class AStar():
         for i, (x, y, _, zx, zy, zz, zw) in enumerate(path_with_orientation):
             angle = 2 * np.arctan2(zz, zw)  # Convert quaternion back to angle
             # print(angle)
-            plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=70,zorder=5)
+            plt.quiver(x, y, np.cos(angle), np.sin(angle), color= 'red', scale=50,zorder=5)
         
     def add_orientation_to_path(self, path):
     # Function to calculate quaternion from an angle theta
@@ -391,14 +392,16 @@ class AStar():
         y_max = center_y_index + radius_in_cells
 
         # Check each cell in the bounding box to see if it's within the circle
-        for x in range(x_min, x_max + 1):
-            for y in range(y_min, y_max + 1):
-                # Calculate the cell's center in meters
+        for x in range(x_min, x_max + 1,2):
+            for y in range(y_min, y_max + 1,2):
+                # Calculate the cell's center 
                 cell_center_x = (x + 0.5) * cell_size
                 cell_center_y = (y + 0.5) * cell_size
 
                 # Check if the cell center is inside the circle
-                if ((cell_center_x - x_center) ** 2 + (cell_center_y - y_center) ** 2) <= radius ** 2:
+                dist=((cell_center_x - x_center) ** 2 + (cell_center_y - y_center) ** 2)
+                rad_square=radius ** 2
+                if dist <= radius ** 2 and dist >= (radius-2) ** 2:
                     occupied_cells.append((x, y))
 
         return occupied_cells
@@ -440,8 +443,12 @@ class AStar():
 
 
 def main():
-    orders=np.array(list(itertools.permutations([1,2,3,4])))
-    orders=[[4,1,3,2]]
+    # orders=np.array(list(itertools.permutations([1,2,3,4])))
+    orders=[[1,2,3,4]]
+    orders=[[2,1,3,4]]
+    # orders=[[1,1,2,2,1]]
+    # orders=[[2,1,1,3,1]]
+    # orders=[[4,4,3,2,1]]
     for order in orders:
         compute_fullpath(order)
     pass
@@ -459,13 +466,18 @@ def compute_fullpath(order):
                         [ 0.5, -1.0, 0, 0, 0, 0],             # obstacle 2
                         [ 1.5,    0, 0, 0, 0, 0],             # obstacle 3
                         [-1.0,    0, 0, 0, 0, 0]])              # obstacle 4
-    # order=np.array([4,3,2,1])
-    file_name=f"Path_files/path_{order[0]}{order[1]}{order[2]}{order[3]}/"
+    
+    # file_name=f"Path_files/path_{order[0]}{order[1]}{order[2]}{order[3]}/"
+
+    file_name=""
+   
+    for o in order:
+        file_name+=f"{o}"
+    file_name="Path_files/path_"+file_name + "/"
 
     if not os.path.isdir(file_name):
         os.makedirs(file_name)
-    # order=np.array([1,2,3,4])
-    # order=np.array([4,1,3,2])
+    
 
     obs=[]
     obs_buffer=0.3
@@ -481,11 +493,11 @@ def compute_fullpath(order):
             obs.append([gate[0]-obs_buffer,gate[1]+0.2,gate_rad])
             obs.append([gate[0]-obs_buffer,gate[1]-0.2,gate_rad])
 
-            obs.append([gate[0]+obs_buffer,gate[1]+0.4,gate_rad+0.05]) #+0.4 to make it wider
-            obs.append([gate[0]+obs_buffer,gate[1]-0.4,gate_rad+0.05])
+            obs.append([gate[0]+obs_buffer,gate[1]+0.5,gate_rad]) #+0.4 to make it wider
+            obs.append([gate[0]+obs_buffer,gate[1]-0.5,gate_rad])
 
-            obs.append([gate[0]-obs_buffer,gate[1]+0.4,gate_rad+0.05])
-            obs.append([gate[0]-obs_buffer,gate[1]-0.4,gate_rad+0.05])
+            obs.append([gate[0]-obs_buffer,gate[1]+0.5,gate_rad])
+            obs.append([gate[0]-obs_buffer,gate[1]-0.5,gate_rad])
         else: #for horizontal gate
             obs.append([gate[0]+0.2,gate[1],gate_rad])  # gate obstacle location
             obs.append([gate[0]-0.2,gate[1],gate_rad])
@@ -496,14 +508,14 @@ def compute_fullpath(order):
             obs.append([gate[0]+0.2,gate[1]-obs_buffer,gate_rad])
             obs.append([gate[0]-0.2,gate[1]-obs_buffer,gate_rad])
 
-            obs.append([gate[0]+0.4,gate[1]+obs_buffer,gate_rad+0.05])
-            obs.append([gate[0]-0.4,gate[1]+obs_buffer,gate_rad+0.05])
+            obs.append([gate[0]+0.5,gate[1]+obs_buffer,gate_rad])
+            obs.append([gate[0]-0.5,gate[1]+obs_buffer,gate_rad])
 
-            obs.append([gate[0]+0.4,gate[1]-obs_buffer,gate_rad+0.05])
-            obs.append([gate[0]-0.4,gate[1]-obs_buffer,gate_rad+0.05])
+            obs.append([gate[0]+0.5,gate[1]-obs_buffer,gate_rad])
+            obs.append([gate[0]-0.5,gate[1]-obs_buffer,gate_rad])
     obstacles_rad=0.06
     obstacles_rad=0.2
-    obstacles_rad=0.15
+    obstacles_rad=0.2
     obstacles_noise=0.2
 
     obs_rad_corrupted=obstacles_rad+obstacles_noise
@@ -526,7 +538,7 @@ def compute_fullpath(order):
     planner=AStar()
     start=np.array([-100,-300])
     final_goal=np.array([-50, 200])
-
+    gate4_remove_idx=[]
     for i,value in enumerate(order):
         
         value-=1
@@ -551,7 +563,7 @@ def compute_fullpath(order):
         last_pose=path[-1,0:2] ############################change shootout to 10 
         path=np.vstack((path,
                         [last_pose[0]+ direction_unit[0] * 10,last_pose[1]+direction_unit[1] * 10,1,0,0,0,0],
-                        [last_pose[0]+ direction_unit[0] * 20,last_pose[1]+direction_unit[1] * 20,1,0,0,0,0]
+                        [last_pose[0]+ direction_unit[0] * 20,last_pose[1]+direction_unit[1] * 20,1,0,0,0,0],
                         # [last_pose[0]+ direction_unit[0] * 30,last_pose[1]+direction_unit[1] * 30,1,0,0,0,0]
                         ))
 
@@ -564,11 +576,20 @@ def compute_fullpath(order):
         path[:,:2]=path[:,:2]/100
 
         
-        print("Path:",path)
+        # print("Path:",path)
         # path.tofile('test_path.dat')
         np.save(file_name+f'test_path{i}.npy', path)    # .npy extension is added if not given
 
-        obs=np.vstack((obs,[gates[value,0]*100,gates[value,1]*100,7]))            #  obs.append([gate[value,0]*100,gate[value,1]*100,20])
+
+        # obs=np.vstack((obs,[gates[value,0]*100,gates[value,1]*100,2]))            #  obs.append([gate[value,0]*100,gate[value,1]*100,20])
+
+        obs=np.vstack((obs,[gates[value,0]*100+direction_unit[0]*15,gates[value,1]*100+direction_unit[1]*15,2]))        # appending gate blocker    #  obs.append([gate[value,0]*100,gate[value,1]*100,20])
+
+        
+        if value==3:
+            gate4_remove_idx.append(obs.shape[0])
+            print("gate 4 blocker index:",obs.shape[0] )
+           
 
         if show_animation:  # pragma: no cover
             plt.plot(rx, ry, "-r")
@@ -578,7 +599,10 @@ def compute_fullpath(order):
             plt.savefig(file_name+f'test_path{i}.png',bbox_inches='tight',dpi=400)
             plt.show(block=False)
 
-
+   
+    correct_gate4_remove_idx=[idx-1 for idx in gate4_remove_idx]
+    print("corrected gate 4 blocker index:",correct_gate4_remove_idx)
+    obs=np.delete(obs, correct_gate4_remove_idx, axis=0)
 
     print("iteration:::::::::::::::::::::: final")
     print("final_start:",path[-1,0:2]*100)
@@ -595,13 +619,13 @@ def compute_fullpath(order):
 
     rx=path[:,0]*1
     ry=path[:,1]*1
-    print("unscaled path:",path[:,0:3])
+    # print("unscaled path:",path[:,0:3])
 
     path=path[:,0:3]
     path[:,:2]=path[:,:2]/100
 
     
-    print("Path:",path)
+    # print("Path:",path)
     # path.tofile('test_path.dat')
     np.save(file_name+'test_path_final.npy', path)    
 
