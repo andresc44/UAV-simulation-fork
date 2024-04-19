@@ -117,7 +117,7 @@ class Controller():
         plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
-        draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        # draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
 
     def planning(self, use_firmware, initial_info):
@@ -138,7 +138,11 @@ class Controller():
 
 
         # c = np.fromfile('test_path.dat', dtype=float)
-        load_folder='Path_files/path_2134/'
+        # load_folder='Path_files/path_2134/'
+        load_folder='aer-course-project/Path_files/path_4132/'
+        load_folder='Path_files_copy/path_4132/'
+
+
         
         a = np.load(load_folder+'test_path0.npy')
 
@@ -172,7 +176,7 @@ class Controller():
                 # duration = 2
                 print(f"number of pts for {i}:::::::::::::::",self.waypoints.shape[0])
                 print("time needed this step:",self.waypoints.shape[0]/15)
-                duration = math.ceil(self.waypoints.shape[0]/15)
+                duration = math.ceil(self.waypoints.shape[0]/15)+1.5
                 self.time_needed+=duration
                 t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
                 self.ref_x = fx(t_scaled)
@@ -199,7 +203,7 @@ class Controller():
                     duration=temp_waypoint.shape[0]/15
                 else:
 
-                    duration = math.ceil(temp_waypoint.shape[0]/15)
+                    duration = math.ceil(temp_waypoint.shape[0]/15)+1.5
                 self.time_needed+=duration
 
                 temp_t_scaled=np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
