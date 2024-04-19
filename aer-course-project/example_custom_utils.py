@@ -12,8 +12,6 @@ import random
 import math
 from scipy.integrate import quad
 
-TESTING = False
-
 ORDER = [2, 1, 3, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
 DRONE_SPEED = 0.6 #m/s
 STEP = 0.4 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
@@ -38,17 +36,11 @@ ITER_STEP_SIZE = 1000 #If no route found at FIRST_RETURN_ITER, check again every
 MAX_ITER = 4000 #Maximum number of nodes to try making  
 STD_DEV_SAMPLING = 0.7
 
-if TESTING:
-    YAML_PATH = 'aer-course-project/getting_started.yaml'
-    CSV_PATH = 'aer-course-project/trajectory.csv'
-else:
-    YAML_PATH = 'getting_started.yaml'
-    CSV_PATH = 'trajectory.csv'
 random.seed(1217)
 SHOW_PLOTS = False
 SHOW_SAMPLES_PLOTS = False
 
-def extract_yaml():
+def extract_yaml(file_path):
     """
     Extract variables from YAML configuration file.
     Returns:
@@ -56,13 +48,13 @@ def extract_yaml():
     """
 
     # Read the YAML configuration file
-    file_path = YAML_PATH
+    file_path
     with open(file_path, 'r') as file:
         full_config = yaml.safe_load(file)
         cfg = full_config['quadrotor_config']
     return cfg
 
-def get_trajectory():
+def get_trajectory(csv_file):
     """
     Read a CSV file and return specific columns as arrays.
 
@@ -73,7 +65,7 @@ def get_trajectory():
         tuple: Tuple containing arrays of t_scaled, ref_x, ref_y, and ref_z.
     """
     # Read the CSV file
-    data = np.genfromtxt(CSV_PATH, delimiter=',', dtype=float)
+    data = np.genfromtxt(csv_file, delimiter=',', dtype=float)
 
     # Extract specific columns
     t_scaled = data[:, 0]
@@ -82,8 +74,8 @@ def get_trajectory():
     ref_z = data[:, 3]
     return t_scaled, ref_x, ref_y, ref_z
     
-def write_arrays_to_csv(array):
-    with open(CSV_PATH, 'w', newline='') as csvfile:
+def write_arrays_to_csv(csv_path, array):
+    with open(csv_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
 
         for row in array:
@@ -799,8 +791,8 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
     return None
 
 
-def determine_trajectory():
-    waypoints, _, obs_bounds = load_waypoints()
+def determine_trajectory(csv_path, yaml_path):
+    waypoints, _, obs_bounds = load_waypoints(yaml_path)
     flat_waypoints = waypoints[1:, :2]
     cfg = extract_yaml()
     ctrl_freq = cfg['ctrl_freq']
@@ -820,8 +812,10 @@ def determine_trajectory():
     middle_2d_traj = np.hstack((middle_2d_traj, height_column))
 
     full_traj = np.vstack((start_3d_traj, middle_2d_traj))
-    write_arrays_to_csv(full_traj)
+    write_arrays_to_csv(csv_path, full_traj)
 
 
 if __name__ == '__main__':
-    determine_trajectory()
+    csv_path_sim = 'trajectory.csv'
+    yaml_path_sim = 'getting_started.yaml'
+    determine_trajectory(csv_path_sim, yaml_path_sim)

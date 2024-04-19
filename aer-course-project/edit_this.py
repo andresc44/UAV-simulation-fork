@@ -27,6 +27,13 @@ Tips:
 
 """
 TESTING = False
+if TESTING:
+    YAML_PATH = 'aer-course-project/getting_started.yaml'
+    CSV_PATH = 'aer-course-project/trajectory.csv'
+else:
+    YAML_PATH = 'getting_started.yaml'
+    CSV_PATH = 'trajectory.csv'
+
 import numpy as np
 
 from collections import deque
@@ -174,12 +181,12 @@ class Controller():
         # self.ref_z = fz(t_scaled)
 
 
-        t_scaled, ref_x, ref_y, ref_z = ecu.get_trajectory()
+        t_scaled, ref_x, ref_y, ref_z = ecu.get_trajectory(CSV_PATH)
         self.ref_x = ref_x
         self.ref_y = ref_y
         self.ref_z = ref_z
 
-        waypoints, lift_height, _ = ecu.load_waypoints()
+        waypoints, lift_height, _ = ecu.load_waypoints(YAML_PATH)
         self.lift_height = lift_height
         self.waypoints = waypoints
 
