@@ -117,7 +117,7 @@ class Controller():
         plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
-        draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        # draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
 
     def planning(self, use_firmware, initial_info):
@@ -139,29 +139,29 @@ class Controller():
 
         order=[4,4,3,2,1]
         order=[2,1,3,4]
+        order=[1,2,3]
+        # order=[3]
+        # order=[3,3,3,2,2]
+        # order=[3,2]
+
+        # order=[3,3,1,2,3]
         load_folder=""
         for o in order:
             load_folder+=f"{o}"
         load_folder="Path_files/path_"+load_folder + "/"
         # load_folder="aer-course-project/Path_files/path_"+load_folder + "/"
         
-        # a = np.load(load_folder+'test_path0.npy')
-
-        # b = np.load(load_folder+'test_path1.npy')
-        # # b = np.delete(b, (0), axis=0)
-
-        # c = np.load(load_folder+'test_path2.npy')
-        # # c = np.delete(c, (0), axis=0)
-
-        # d = np.load(load_folder+'test_path3.npy')
-        # # d = np.delete(d, (0), axis=0)
-
-        # e = np.load(load_folder+'test_path_final.npy')
-        # # e = np.delete(e, (0), axis=0)
+       
         pathhhh=[]
         for i,o in enumerate(order):
-            pathhhh.append(np.load(load_folder+f'test_path{i}.npy'))
-        pathhhh.append(np.load(load_folder+'test_path_final.npy'))
+            inter=np.load(load_folder+f'test_path{i}.npy')
+            if i!=0:
+                inter= np.delete(inter, (0), axis=0)
+            
+            pathhhh.append(inter)
+        final=np.load(load_folder+'test_path_final.npy')
+        final= np.delete(final, (0), axis=0)
+        pathhhh.append(final)
         
         self.time_needed=0
         for i, p in enumerate(pathhhh):
@@ -169,8 +169,8 @@ class Controller():
             # t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
             if i==0:
                 self.waypoints=p
-                self.waypoints[0,2]=0.8
-                deg = 9
+                # self.waypoints[0,2]=0.8
+                deg = 8
                 t = np.arange(self.waypoints.shape[0])
                 fx = np.poly1d(np.polyfit(t, self.waypoints[:,0], deg))
                 fy = np.poly1d(np.polyfit(t, self.waypoints[:,1], deg))
@@ -178,12 +178,22 @@ class Controller():
                 # duration = 2
                 print(f"number of pts for {i}:::::::::::::::",self.waypoints.shape[0])
                 print("time needed this step:",self.waypoints.shape[0]/15)
-                duration = math.ceil(self.waypoints.shape[0]/15)+1.5
+                duration = math.ceil(self.waypoints.shape[0]/15)+0
                 self.time_needed+=duration
                 t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
                 self.ref_x = fx(t_scaled)
                 self.ref_y = fy(t_scaled)
                 self.ref_z = fz(t_scaled)
+                
+
+
+                print(t)
+                print(fx(t_scaled))
+                print(fy(t_scaled))
+                
+
+                # print("point for path:",i,p)
+                # print("ref point for path:",i,self.ref_x,self.ref_y)
             else:
                 temp_waypoint=p
                 
@@ -193,7 +203,7 @@ class Controller():
 
                 
                 
-                deg = 9
+                deg = 8
                 t = np.arange(self.waypoints.shape[0],self.waypoints.shape[0]+temp_waypoint.shape[0])
                 self.waypoints=np.append(self.waypoints,temp_waypoint, axis=0)
                 fx = np.poly1d(np.polyfit(t, temp_waypoint[:,0], deg))
@@ -204,16 +214,28 @@ class Controller():
                 print("time needed this step:", temp_waypoint.shape[0]/15)
                 if temp_waypoint.shape[0]/15<=0.5:
                     duration=temp_waypoint.shape[0]/15
+                elif i==len(order):
+
+                    duration = math.ceil(temp_waypoint.shape[0]/15)
                 else:
 
-                    duration = math.ceil(temp_waypoint.shape[0]/15)+1.5
+                    duration = math.ceil(temp_waypoint.shape[0]/15)+0
                 self.time_needed+=duration
-
+                
                 temp_t_scaled=np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
                 t_scaled = np.append(t_scaled, temp_t_scaled)
                 self.ref_x=np.append(self.ref_x, fx(temp_t_scaled))
                 self.ref_y=np.append(self.ref_y, fy(temp_t_scaled))
                 self.ref_z=np.append(self.ref_z, fz(temp_t_scaled))
+
+
+                print(t)
+                print(fx(temp_t_scaled))
+                print(fy(temp_t_scaled))
+
+
+                # print("point for path:",i,p)
+                # print("ref point for path:",i,self.ref_x,self.ref_y)
                 
             # self.time_needed=math.ceil(self.time_needed)
             print("time needed:", self.time_needed)
@@ -268,16 +290,45 @@ class Controller():
         # print(self.NOMINAL_GATES)
         
         if iteration == 0:
-            height = 0.8
+            height = 1
+
             duration = 2
 
             command_type = Command(2)  # Take-off.
             args = [height, duration]
 
-        # [INSTRUCTIONS] Example code for using cmdFullState interface   
-        elif iteration >= 1*self.CTRL_FREQ and iteration < ( self.time_needed+2)*self.CTRL_FREQ:
-            step = min(iteration-1*self.CTRL_FREQ, len(self.ref_x) -1)
-            target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]])
+       
+          
+        elif iteration >= 2*self.CTRL_FREQ and iteration < ( self.time_needed+3)*self.CTRL_FREQ:
+            step = min(iteration-2*self.CTRL_FREQ, len(self.ref_x) -1)
+            target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]], dtype=float)
+
+        
+            dt=1/self.CTRL_FREQ
+            if step==len(self.ref_x) -1 or step==0:
+                target_vel = np.zeros(3)
+                target_acc = np.zeros(3)
+                
+            else:
+                x_vel=(self.ref_x[step+1]-self.ref_x[step])/dt
+                y_vel=(self.ref_y[step+1]-self.ref_y[step])/dt
+                z_vel=(self.ref_z[step+1]-self.ref_z[step])/dt
+                
+
+                prev_x_vel=(self.ref_x[step]-self.ref_x[step-1])/dt
+                prev_y_vel=(self.ref_y[step]-self.ref_y[step-1])/dt
+                prev_z_vel=(self.ref_z[step]-self.ref_z[step-1])/dt
+                
+
+                x_acc=(x_vel-prev_x_vel)/dt
+                y_acc=(y_vel-prev_y_vel)/dt
+                z_acc=(z_vel-prev_z_vel)/dt
+                target_vel=np.array([x_vel,y_vel,z_vel])
+                target_acc=np.array([x_acc,y_acc,z_acc])
+
+                
+            print("vel",target_vel)
+            print("acc",target_acc)
             target_vel = np.zeros(3)
             target_acc = np.zeros(3)
             target_yaw = 0.
@@ -286,32 +337,22 @@ class Controller():
             command_type = Command(1)  # cmdFullState.
             args = [target_pos, target_vel, target_acc, target_yaw, target_rpy_rates]
 
-        elif iteration == (self.time_needed+2)*self.CTRL_FREQ:
+        elif iteration == (self.time_needed+3)*self.CTRL_FREQ:
             command_type = Command(6)  # Notify setpoint stop.
             print("setstop")
             args = []
 
-    #    [INSTRUCTIONS] Example code for using goTo interface 
-        # elif iteration == (self.time_needed+2)*self.CTRL_FREQ+1:
-        #     x = self.ref_x[-1]
-        #     y = self.ref_y[-1]
-        #     z = 0.8
-        #     yaw = 0.
-        #     duration = 0.5
-
-        #     command_type = Command(5)  # goTo.
-        #     args = [[x, y, z], yaw, duration, False]
 
 
 
-        elif iteration == (self.time_needed+2)*self.CTRL_FREQ+1:
+        elif iteration == (self.time_needed+3)*self.CTRL_FREQ+1:
             height = 0.
             duration = 2
 
             command_type = Command(3)  # Land.
             args = [height, duration]
 
-        elif iteration == (self.time_needed+2+3)*self.CTRL_FREQ-1:
+        elif iteration == (self.time_needed+3+3)*self.CTRL_FREQ-1:
             command_type = Command(4)  # STOP command to be sent once the trajectory is completed.
             args = []
 

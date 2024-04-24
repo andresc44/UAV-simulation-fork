@@ -444,11 +444,13 @@ class AStar():
 
 def main():
     # orders=np.array(list(itertools.permutations([1,2,3,4])))
-    orders=[[1,2,3,4]]
+    # orders=[[1,2,3,4]]
     orders=[[2,1,3,4]]
     # orders=[[1,1,2,2,1]]
     # orders=[[2,1,1,3,1]]
-    # orders=[[4,4,3,2,1]]
+    orders=[[1,2,3,1]]
+
+    # orders=[[3,2]]
     for order in orders:
         compute_fullpath(order)
     pass

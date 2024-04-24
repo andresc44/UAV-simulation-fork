@@ -297,7 +297,7 @@ def plot_trajectory(t_scaled,
     axs[1].set_ylabel('y (m)')
     axs[2].plot(t_scaled, ref_z)
     axs[2].set_ylabel('z (m)')
-    plt.savefig("xyz_plot.png",bbox_inches='tight')
+    plt.savefig("xyz_plot.png",bbox_inches='tight',dpi=400)
    
     # plt.show(block=False)
     # plt.pause(2)
