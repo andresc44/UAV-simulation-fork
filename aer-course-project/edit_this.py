@@ -27,6 +27,7 @@ Tips:
 
 """
 TESTING = False
+# python3 aer-course-project/final_project.py --overrides aer-course-project/getting_started.yaml
 if TESTING:
     YAML_PATH = 'aer-course-project/getting_started.yaml'
     CSV_PATH = 'aer-course-project/trajectory.csv'
@@ -253,6 +254,25 @@ class Controller():
             step = int(min(iteration-LIFT_DURATION*self.CTRL_FREQ, len(self.ref_x) -1))
             # print(f"{step} out of {len(self.ref_x) -1}")
             target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]])
+            # if step < (len(self.ref_x) -1):
+            #     x_vel = (self.ref_x[step+1] - self.ref_x[step]) * self.CTRL_FREQ
+            #     y_vel = (self.ref_y[step+1] - self.ref_y[step]) * self.CTRL_FREQ
+            #     z_vel = (self.ref_z[step+1] - self.ref_z[step]) * self.CTRL_FREQ
+            #     target_vel = np.array([x_vel, y_vel, z_vel])
+            # else:
+            #     target_vel = np.zeros(3)
+
+            # if step < (len(self.ref_x) -2):
+            #     x_next_vel = (self.ref_x[step+2] - self.ref_x[step+1]) * self.CTRL_FREQ
+            #     y_next_vel = (self.ref_y[step+2] - self.ref_y[step+1]) * self.CTRL_FREQ
+            #     z_next_vel = (self.ref_z[step+2] - self.ref_z[step+1]) * self.CTRL_FREQ
+
+            #     x_acc = (x_next_vel - x_vel) * self.CTRL_FREQ
+            #     y_acc = (y_next_vel - y_vel) * self.CTRL_FREQ
+            #     z_acc = (z_next_vel - z_vel) * self.CTRL_FREQ
+            #     target_acc = np.array([x_acc, y_acc, z_acc])
+            # else:
+            #     target_acc = np.zeros(3)
             target_vel = np.zeros(3)
             target_acc = np.zeros(3)
             target_yaw = 0.

@@ -13,13 +13,14 @@ import math
 from scipy.integrate import quad
 
 ORDER = [2, 1, 3, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 0.6 #m/s
-STEP = 0.4 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
+DRONE_SPEED = 1.4 #m/s
+STEP = 0.45 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
 
 ASCENT_RADIUS = 0.8 # How far away to be when reaching target of 1m
 POLY_DEGREE = 8 #How much to fit to RRT* path
-GATE_STRAIGHT_WEIGHT = 30 #How vital is it to go more straight during gate
+GATE_STRAIGHT_WEIGHT = 20 #How vital is it to go more straight during gate
+#Above should be even number
 
 ADDITIONAL_OBS_BUFFER = 0.2 #Pretty high, could lower
 GATE_BUFFER = 0.1 #How to treat as obstacle, could increase
@@ -40,7 +41,7 @@ random.seed(1217)
 SHOW_PLOTS = False
 SHOW_SAMPLES_PLOTS = False
 
-def extract_yaml(file_path):
+def extract_yaml(yaml_path):
     """
     Extract variables from YAML configuration file.
     Returns:
@@ -48,8 +49,7 @@ def extract_yaml(file_path):
     """
 
     # Read the YAML configuration file
-    file_path
-    with open(file_path, 'r') as file:
+    with open(yaml_path, 'r') as file:
         full_config = yaml.safe_load(file)
         cfg = full_config['quadrotor_config']
     return cfg
@@ -133,7 +133,7 @@ def fit_curve(offset, dt, points):
 
 def to_first_waypoint(dt, start_and_endpoints):
     start = start_and_endpoints[0]
-    end = start_and_endpoints[1]
+    end = start_and_endpoints[2]
 
     # Step size for the additional points
     spacing = FIRST_SEGMENT_STEEPNESS
@@ -225,14 +225,12 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
     first_target = best_gate_orientation[0].before
     first_RRT_traj = RRT_star_straight_lines(startpoint, first_target, obs_bounds)
 
+    first_point_cushion = 0.1
     for coordinates in first_RRT_traj:
         cur_dist =  get_distance(startpoint, (coordinates[0], coordinates[1]))
-        if cur_dist< ASCENT_RADIUS:
-            ascent_coordinates = coordinates
-        if cur_dist< ASCENT_RADIUS+0.05:
-            first_after = coordinates
-        if cur_dist< ASCENT_RADIUS+0.1:
-            sec_after = coordinates
+        if cur_dist< ASCENT_RADIUS: ascent_coordinates = coordinates
+        if cur_dist< ASCENT_RADIUS+first_point_cushion: first_after = coordinates
+        if cur_dist< ASCENT_RADIUS+first_point_cushion*2: sec_after = coordinates
     ascent_coordinates = np.round(ascent_coordinates, decimals=3)
     first_after = np.round(first_after, decimals=3)
     sec_after = np.round(sec_after, decimals=3)
@@ -252,10 +250,10 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
     # print("waypoints: \n", waypoints)
     return waypoints
 
-def load_waypoints():
+def load_waypoints(yaml_path):
     order=ORDER
     order = np.array(order)-1
-    cfg = extract_yaml()
+    cfg = extract_yaml(yaml_path)
     full_gates = np.array(cfg['gates'])[:, (0, 1, 5)]
     init_x = cfg['init_state']['init_x']
     init_y = cfg['init_state']['init_y']
@@ -366,9 +364,10 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
     third_curve, fourth_start = shortest_curved_path(flat_waypoints[6:12], (third_start+dt), dt, obs_bounds, last_segment=False)
     
     print("To fourth gate")
-    fourth_curve, fifth_start = shortest_curved_path(flat_waypoints[9:15], (fourth_start+dt), dt, obs_bounds, last_segment=True)
+    fourth_curve, fifth_start = shortest_curved_path(flat_waypoints[9:15], (fourth_start+dt), dt, obs_bounds, last_segment=False)
 
     print("To endpoint")
+    print("last waypoints: ", flat_waypoints[12:16])
     fifth_curve, _            = shortest_curved_path(flat_waypoints[12:16], (fifth_start+dt), dt, obs_bounds, last_segment=True)
 
     total_traj = np.vstack((first_curve, second_curve, third_curve, fourth_curve, fifth_curve))
@@ -391,11 +390,15 @@ def shortest_curved_path(points, time_offset, dt, obs_bounds, last_segment):
     # print("solution shape: ", straight_line_traj.shape)
     straight_segment_weight = GATE_STRAIGHT_WEIGHT
     straight_seg1 = np.linspace(points[0], points[2], straight_segment_weight)
+    
     if last_segment:
         full_traj = np.vstack((straight_seg1, straight_line_traj))
     else:
         straight_seg2 = np.linspace(points[3], points[5], straight_segment_weight)
         full_traj = np.vstack((straight_seg1, straight_line_traj, straight_seg2))
+    
+    
+    
     x_traj = full_traj[:, 0]
     y_traj = full_traj[:, 1]
 
@@ -409,9 +412,9 @@ def shortest_curved_path(points, time_offset, dt, obs_bounds, last_segment):
     poly_function_x = np.poly1d(coefficients_x)
     poly_function_y = np.poly1d(coefficients_y)
 
-    t1 = 0.0
+    t1 = straight_segment_weight/2
     if last_segment: t2 = len(full_traj)-1
-    else: t2 = len(full_traj)- 1 - straight_segment_weight
+    else: t2 = len(full_traj)-1-(straight_segment_weight/2)
     
       # Example value for t2
 
@@ -794,10 +797,10 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
 def determine_trajectory(csv_path, yaml_path):
     waypoints, _, obs_bounds = load_waypoints(yaml_path)
     flat_waypoints = waypoints[1:, :2]
-    cfg = extract_yaml()
+    cfg = extract_yaml(yaml_path)
     ctrl_freq = cfg['ctrl_freq']
     dt = 1.0/float(ctrl_freq)
-    start_3d_traj = to_first_waypoint(dt, waypoints[0:2])
+    start_3d_traj = to_first_waypoint(dt, waypoints[0:3])
     last_time_p1 = start_3d_traj[-1, 0] #latest_time
     start_time = last_time_p1 + dt
     print("\n\n\n")
