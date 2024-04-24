@@ -12,17 +12,17 @@ import random
 import math
 from scipy.integrate import quad
 
-ORDER = [2, 1, 3, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 1.4 #m/s
+ORDER = [2, 1, 4, 3, 2] # Gate Order, Slightly slower for 4, 3, 2, 1
+DRONE_SPEED = 1.2 #m/s
 STEP = 0.45 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
 
-ASCENT_RADIUS = 0.8 # How far away to be when reaching target of 1m
+ASCENT_RADIUS = 0.25 # How far away to be when reaching target of 1m
 POLY_DEGREE = 8 #How much to fit to RRT* path
 GATE_STRAIGHT_WEIGHT = 20 #How vital is it to go more straight during gate
 #Above should be even number
 
-ADDITIONAL_OBS_BUFFER = 0.2 #Pretty high, could lower
+ADDITIONAL_OBS_BUFFER = 0.05 #Pretty high, could lower
 GATE_BUFFER = 0.1 #How to treat as obstacle, could increase
 
 LIFT_HEIGHT = 0.1 #How high to go up vertically
@@ -202,9 +202,9 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
     min_dist = float('inf')
     # init_z = LIFT_HEIGHT
     # endpoint[2] = LAND_HEIGHT
-
-    for i in range(16):
-        binary_mask = format(i, '04b')  # Convert the integer to binary_mask with 4 bits
+    combinations = 2 ** (len(ref_gates))
+    for i in range(combinations):
+        binary_mask = format(i, f'0{len(ref_gates)}b')  # Convert the integer to binary_mask with 4 bits
         reverse_bool_array = np.array(list(map(int, list(binary_mask))))
         temp_gates = []
         for j in range(len(ref_gates)):
@@ -214,10 +214,10 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
             temp_gates.append(bool_gate)
         total_dist = get_distance(startpoint, temp_gates[0].before)
 
-        for j in range(3):
+        for j in range(len(ref_gates)-1):
             total_dist += get_distance(temp_gates[j].after, temp_gates[j+1].before)
         
-        total_dist += get_distance(temp_gates[3].after, endpoint)
+        total_dist += get_distance(temp_gates[-1].after, endpoint)
         if total_dist < min_dist:
             min_dist = total_dist
             best_gate_orientation = temp_gates
@@ -225,7 +225,7 @@ def order_waypoints(startpoint, endpoint, ref_gates, obs_bounds):
     first_target = best_gate_orientation[0].before
     first_RRT_traj = RRT_star_straight_lines(startpoint, first_target, obs_bounds)
 
-    first_point_cushion = 0.1
+    first_point_cushion = 0.2
     for coordinates in first_RRT_traj:
         cur_dist =  get_distance(startpoint, (coordinates[0], coordinates[1]))
         if cur_dist< ASCENT_RADIUS: ascent_coordinates = coordinates
@@ -298,7 +298,7 @@ def load_waypoints(yaml_path):
 
 
     ref_gates = []
-    for i in range(len(full_gates)):
+    for i in range(len(order)):
         ref_gates.append(Gate(full_gates[order[i]], [order[i]+1]))
 
     
@@ -354,23 +354,40 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
     #         [-0.5,  1.6]])
     # obst_cent = np.array(cfg['obstacles'])[:, :2]
     # obs_bounds = construct_obst_bounds(obst_cent, gate_obs)
-    print("To first gate")
-    first_curve, second_start = shortest_curved_path(flat_waypoints[:6], start_time, dt, obs_bounds, last_segment=False)
+    gates_to_pass = int((len(flat_waypoints)-1)/3-1)
+    print("gates_to_pass: ", gates_to_pass)
 
-    print("To second gate")
-    second_curve, third_start = shortest_curved_path(flat_waypoints[3:9], (second_start+dt), dt, obs_bounds, last_segment=False)
+    for i in range(gates_to_pass):
+        print("heading to gate ", chr(ord('A') + i))
+        if i == 0:
+            print("First 6 flat waypoints: ", flat_waypoints[:6])
+            total_traj, latest_start =  shortest_curved_path(flat_waypoints[:6], start_time, dt, obs_bounds, last_segment=False)
+        else:
+            curve, latest_start = shortest_curved_path(flat_waypoints[3*i:3*i+6], latest_start+dt, dt, obs_bounds, last_segment=False)
+            total_traj = np.vstack((total_traj, curve))
+    print("heading to endpoint")
+    last_curve, _ = shortest_curved_path(flat_waypoints[3*(i+1)::], (latest_start+dt), dt, obs_bounds, last_segment=True)
+    total_traj = np.vstack((total_traj, last_curve))
 
-    print("To third gate")
-    third_curve, fourth_start = shortest_curved_path(flat_waypoints[6:12], (third_start+dt), dt, obs_bounds, last_segment=False)
+
+
+
+    # first_curve, second_start = shortest_curved_path(flat_waypoints[:6], start_time, dt, obs_bounds, last_segment=False)
+
+    # print("To second gate")
+    # second_curve, third_start = shortest_curved_path(flat_waypoints[3:9], (second_start+dt), dt, obs_bounds, last_segment=False)
+
+    # print("To third gate")
+    # third_curve, fourth_start = shortest_curved_path(flat_waypoints[6:12], (third_start+dt), dt, obs_bounds, last_segment=False)
     
-    print("To fourth gate")
-    fourth_curve, fifth_start = shortest_curved_path(flat_waypoints[9:15], (fourth_start+dt), dt, obs_bounds, last_segment=False)
+    # print("To fourth gate")
+    # fourth_curve, fifth_start = shortest_curved_path(flat_waypoints[9:15], (fourth_start+dt), dt, obs_bounds, last_segment=False)
 
-    print("To endpoint")
-    print("last waypoints: ", flat_waypoints[12:16])
-    fifth_curve, _            = shortest_curved_path(flat_waypoints[12:16], (fifth_start+dt), dt, obs_bounds, last_segment=True)
+    # print("To endpoint")
+    # print("last waypoints: ", flat_waypoints[12:16])
+    # fifth_curve, _            = shortest_curved_path(flat_waypoints[12:16], (fifth_start+dt), dt, obs_bounds, last_segment=True)
 
-    total_traj = np.vstack((first_curve, second_curve, third_curve, fourth_curve, fifth_curve))
+    # total_traj = np.vstack((first_curve, second_curve, third_curve, fourth_curve, fifth_curve))
 
 
     # value_to_test = np.array([1.4, -2.6])  # 2D value to test
@@ -457,20 +474,6 @@ def shortest_curved_path(points, time_offset, dt, obs_bounds, last_segment):
         plt.xlim(-3.5, 3.5)
         plt.ylim(-3.5, 3.5)
         plt.show()
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
     return np.round(traj, decimals=3), last_time
 
 
@@ -800,7 +803,9 @@ def determine_trajectory(csv_path, yaml_path):
     cfg = extract_yaml(yaml_path)
     ctrl_freq = cfg['ctrl_freq']
     dt = 1.0/float(ctrl_freq)
+    print("waypoints: \n", waypoints, " \nfirst 3 sent to to_first_waypoints")
     start_3d_traj = to_first_waypoint(dt, waypoints[0:3])
+    print("rows of first traj: ", len(start_3d_traj))
     last_time_p1 = start_3d_traj[-1, 0] #latest_time
     start_time = last_time_p1 + dt
     print("\n\n\n")
