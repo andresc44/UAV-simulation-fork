@@ -36,6 +36,10 @@ except ImportError:
     # PyTest import.
     from .project_utils import Command, PIDController, timing_step, timing_ep, plot_trajectory, draw_trajectory
 
+order = [4, 2, 3, 2]
+start = np.array([-1.00, -3.00, 0.00])
+final_goal = np.array([2.0, 1.00, 0.00])
+speedfactor=40
 #########################
 # REPLACE THIS (START) ##
 #########################
@@ -48,11 +52,9 @@ except ImportError:
     # PyTest import.
     from . import example_custom_utils as ecu
 
-
 #########################
 # REPLACE THIS (END) ####
 #########################
-target_speed = 1.0
 
 class Controller():
     """Template controller class.
@@ -90,7 +92,6 @@ class Controller():
         self.initial_obs = initial_obs
         self.VERBOSE = verbose
         self.BUFFER_SIZE = buffer_size
-        self.target_speed = 1.0
 
         # Store a priori scenario information.
         # plan the trajectory based on the information of the (1) gates and (2) obstacles. 
@@ -117,26 +118,101 @@ class Controller():
         ## visualization
         # Plot trajectory in each dimension and 3D.
 
-        # plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
         # draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
-    def planning(self, use_firmware, initial_info):
-        self.iteration = 0
-        order = [4, 2, 3, 2]
-        path = np.load(
-            "/home/justmohsen/Documents/AER1217/UAV-simulation-fork/aer-course-project/Path_files_rrt_star/path_4232/test_path_final.npy")
-        # final= np.delete(final, (0), axis=0)
 
-        self.time_needed = 0
-        speedfactor = 40
-        self.waypoints = path
-        self.ref_x = self.waypoints[:, 0]
-        self.ref_y = self.waypoints[:, 1]
-        self.ref_z = [1.0] * len(self.ref_x)
-        self.ref_yaw = self.waypoints[:, 2]
-        return 0
+    def planning(self, use_firmware, initial_info):
+        """Trajectory planning algorithm"""
+        #########################
+        # REPLACE THIS (START) ##
+        #########################
+        ## generate waypoints for planning
+        self.iteration=0
+        _, paths = ecu.get_fullpath(order, start, final_goal)
+        for path in paths:
+            path[:,2]=1.0
+        self.time_needed=0
+        for i, p in enumerate(paths):
+            # t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
+            if i==0:
+                self.waypoints=p
+                # self.waypoints[0,2]=0.8
+                deg = 8
+                t = np.arange(self.waypoints.shape[0])
+                fx = np.poly1d(np.polyfit(t, self.waypoints[:,0], deg))
+                fy = np.poly1d(np.polyfit(t, self.waypoints[:,1], deg))
+                fz = np.poly1d(np.polyfit(t, self.waypoints[:,2], deg))
+                # duration = 2
+                print(f"number of pts for {i}:::::::::::::::",self.waypoints.shape[0])
+                print("time needed this step:",self.waypoints.shape[0]/speedfactor)
+                duration = math.ceil(self.waypoints.shape[0]/speedfactor)+0
+                self.time_needed+=duration
+                t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
+                self.ref_x = fx(t_scaled)
+                self.ref_y = fy(t_scaled)
+                self.ref_z = fz(t_scaled)
+
+
+
+                print(t)
+                print(fx(t_scaled))
+                print(fy(t_scaled))
+
+
+                # print("point for path:",i,p)
+                # print("ref point for path:",i,self.ref_x,self.ref_y)
+            else:
+                temp_waypoint=p
+
+                if i==len(order):
+                    temp_waypoint[-1,2]=0.8
+                    # print(temp_waypoint)
+
+
+
+                deg = 8
+                t = np.arange(self.waypoints.shape[0],self.waypoints.shape[0]+temp_waypoint.shape[0])
+                self.waypoints=np.append(self.waypoints,temp_waypoint, axis=0)
+                fx = np.poly1d(np.polyfit(t, temp_waypoint[:,0], deg))
+                fy = np.poly1d(np.polyfit(t, temp_waypoint[:,1], deg))
+                fz = np.poly1d(np.polyfit(t, temp_waypoint[:,2], deg))
+                # duration = 2
+                print(f"number of pts for {i}:::::::::::::::",temp_waypoint.shape[0])
+                print("time needed this step:", temp_waypoint.shape[0]/speedfactor)
+                if temp_waypoint.shape[0]/speedfactor<=0.5:
+                    duration=temp_waypoint.shape[0]/speedfactor
+                elif i==len(order):
+
+                    duration = math.ceil(temp_waypoint.shape[0]/speedfactor)
+                else:
+
+                    duration = math.ceil(temp_waypoint.shape[0]/speedfactor)+0
+                self.time_needed+=duration
+
+                temp_t_scaled=np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
+                t_scaled = np.append(t_scaled, temp_t_scaled)
+                self.ref_x=np.append(self.ref_x, fx(temp_t_scaled))
+                self.ref_y=np.append(self.ref_y, fy(temp_t_scaled))
+                self.ref_z=np.append(self.ref_z, fz(temp_t_scaled))
+
+
+                print(t)
+                print(fx(temp_t_scaled))
+                print(fy(temp_t_scaled))
+
+
+                # print("point for path:",i,p)
+                # print("ref point for path:",i,self.ref_x,self.ref_y)
+
+            # self.time_needed=math.ceil(self.time_needed)
+            print("time needed:", self.time_needed)
+        self.time_needed=math.ceil(self.time_needed)
+        print("total time needed:", self.time_needed)
+
+        return t_scaled
 
     def cmdFirmware(self,
                     time,
@@ -165,23 +241,22 @@ class Controller():
 
         """
         if self.ctrl is not None:
-            raise RuntimeError(
-                "[ERROR] Using method 'cmdFirmware' but Controller was created with 'use_firmware' = False.")
+            raise RuntimeError("[ERROR] Using method 'cmdFirmware' but Controller was created with 'use_firmware' = False.")
 
-        # [INSTRUCTIONS]
-        # self.CTRL_FREQ is 30 (set in the getting_started.yaml file)
+        # [INSTRUCTIONS] 
+        # self.CTRL_FREQ is 30 (set in the getting_started.yaml file) 
         # control input iteration indicates the number of control inputs sent to the quadrotor
-        iteration = int(time * self.CTRL_FREQ)
+        iteration = int(time*self.CTRL_FREQ)
 
         # print(iteration,self.iteration==iteration)
-        iteration = self.iteration
-        self.iteration += 1
+        iteration=self.iteration
+        self.iteration+=1
 
         #########################
         # REPLACE THIS (START) ##
         #########################
 
-        # print("The info. of the gates ")
+        # print("The info. of the gates ") 
         # print(self.NOMINAL_GATES)
 
         if iteration == 0:
@@ -194,26 +269,45 @@ class Controller():
 
 
 
-        elif iteration >= 2 * self.CTRL_FREQ and iteration < (self.time_needed + 3) * self.CTRL_FREQ:
-            step = min(iteration - 2 * self.CTRL_FREQ, len(self.ref_x) - 1)
+        elif iteration >= 2*self.CTRL_FREQ and iteration < ( self.time_needed+3)*self.CTRL_FREQ:
+            step = min(iteration-2*self.CTRL_FREQ, len(self.ref_x) -1)
             target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]], dtype=float)
 
-            yaw_angular_change = (self.ref_yaw[step] - self.ref_yaw[step - 1])
-            target_speed = self.target_speed * math.exp(-np.abs(yaw_angular_change))
-            target_speed = self.target_speed
-            x_vel = (self.ref_x[step + 1] - self.ref_x[step])
-            y_vel = (self.ref_y[step + 1] - self.ref_y[step])
-            target_vel = np.array([x_vel * target_speed / np.sqrt(x_vel**2 + y_vel**2), y_vel * target_speed / np.sqrt(x_vel**2 + y_vel**2), 0])
+
+            dt=1/self.CTRL_FREQ
+            if step==len(self.ref_x) -1 or step==0:
+                target_vel = np.zeros(3)
+                target_acc = np.zeros(3)
+
+            else:
+                x_vel=(self.ref_x[step+1]-self.ref_x[step])/dt
+                y_vel=(self.ref_y[step+1]-self.ref_y[step])/dt
+                z_vel=(self.ref_z[step+1]-self.ref_z[step])/dt
+
+
+                prev_x_vel=(self.ref_x[step]-self.ref_x[step-1])/dt
+                prev_y_vel=(self.ref_y[step]-self.ref_y[step-1])/dt
+                prev_z_vel=(self.ref_z[step]-self.ref_z[step-1])/dt
+
+
+                x_acc=(x_vel-prev_x_vel)/dt
+                y_acc=(y_vel-prev_y_vel)/dt
+                z_acc=(z_vel-prev_z_vel)/dt
+                target_vel=np.array([x_vel,y_vel,z_vel])
+                target_acc=np.array([x_acc,y_acc,z_acc])
+
+
+            # print("vel",target_vel)
+            # print("acc",target_acc)
             target_vel = np.zeros(3)
             target_acc = np.zeros(3)
-            # target_yaw = self.ref_yaw[step]
-            target_yaw = 0.0
+            target_yaw = 0.
             target_rpy_rates = np.zeros(3)
 
             command_type = Command(1)  # cmdFullState.
             args = [target_pos, target_vel, target_acc, target_yaw, target_rpy_rates]
 
-        elif iteration == (self.time_needed + 3) * self.CTRL_FREQ:
+        elif iteration == (self.time_needed+3)*self.CTRL_FREQ:
             command_type = Command(6)  # Notify setpoint stop.
             print("setstop")
             args = []
@@ -221,14 +315,14 @@ class Controller():
 
 
 
-        elif iteration == (self.time_needed + 3) * self.CTRL_FREQ + 1:
+        elif iteration == (self.time_needed+3)*self.CTRL_FREQ+1:
             height = 0.
             duration = 2
 
             command_type = Command(3)  # Land.
             args = [height, duration]
 
-        elif iteration == (self.time_needed + 3 + 3) * self.CTRL_FREQ - 1:
+        elif iteration == (self.time_needed+3+3)*self.CTRL_FREQ-1:
             command_type = Command(4)  # STOP command to be sent once the trajectory is completed.
             args = []
 
@@ -269,10 +363,9 @@ class Controller():
 
         """
         if self.ctrl is None:
-            raise RuntimeError(
-                "[ERROR] Attempting to use method 'cmdSimOnly' but Controller was created with 'use_firmware' = True.")
+            raise RuntimeError("[ERROR] Attempting to use method 'cmdSimOnly' but Controller was created with 'use_firmware' = True.")
 
-        iteration = int(time * self.CTRL_FREQ)
+        iteration = int(time*self.CTRL_FREQ)
 
         #########################
         if iteration < len(self.ref_x):

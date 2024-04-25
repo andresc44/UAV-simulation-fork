@@ -22,20 +22,25 @@ obstacles = np.array([  # x, y, z, r, p, y
     [0.5, -1.0, 0, 0, 0, 0],  # obstacle 2
     [1.5, 0, 0, 0, 0, 0],  # obstacle 3
     [-1.0, 0, 0, 0, 0, 0]])  # obstacle 4
+gates_between = np.array([  # x, y, z, r, p, y, type
+    [0.9, -2.5, 0, 0, 0, 1.57, 0],  # gate 1
+    [2.0, -1.9, 0, 0, 0, 3.14, 0],  # gate 2
+    [0.4, 0.2, 0, 0, 0, -1.57, 0],  # gate 3
+    [-0.5, 1.9, 0, 0, 0, 3.14, 0]])  # gate 4])
 gate_rad = 0.1
 gate_width = 0.2
 obstacles_rad = 0.15
 obstacles_noise = 0.2
 obs_rad_corrupted = obstacles_rad + obstacles_noise
 map_bound = [-2.00, 3.00, -3.50, 2.50]  # min_x max_x min_y max_y
-start = np.array([-1.00, -2.00, 0.00])
+start = np.array([-1.00, -3.00, 0.00])
 final_goal = np.array([2.0, 1.00, 0.00])
 plot_rrt_planning = False
 
 
 def main():
     orders = np.array(list(itertools.permutations([1, 2, 3, 4])))
-    orders = [[4, 2, 3, 2]]
+    # orders = [[4, 2, 3, 2]]
     for order in orders:
         compute_fullpath(order)
     pass
@@ -48,28 +53,9 @@ def compute_fullpath(gate_order):
         os.makedirs(file_name)
 
     obs = []
-    previous_gate = -1
     # Add gates boarders as obstacles
     repeated_gate = False
     for gate in gates:
-        # if previous_gate == gate:
-        #     temp_gate = gate
-        #     repeated_gate = True
-        #     if temp_gate[5]==0:
-        #         temp_gate[1] = temp_gate[1] + 2 * gate_width
-        #     else:
-        #         temp_gate[0] = temp_gate[0] + 2 * gate_width
-        #     temp_gate[5] = temp_gate[5] + math.pi
-        #     # for vertical gate
-        #     if temp_gate[5] != 0:
-        #         obs.append([temp_gate[0], temp_gate[1] + gate_width, gate_rad])
-        #         obs.append([temp_gate[0], temp_gate[1] - gate_width, gate_rad])
-        #     # for horizontal gate
-        #     else:
-        #         obs.append([temp_gate[0] + gate_width, temp_gate[1], gate_rad])
-        #         obs.append([temp_gate[0] - gate_width, temp_gate[1], gate_rad])
-
-
         # for vertical gate
         if gate[5] != 0:
             obs.append([gate[0], gate[1] + gate_width, gate_rad])
@@ -140,5 +126,59 @@ def plot_circle(x, y, size, color="-b"):
     xl = [x + size * math.cos(np.deg2rad(d)) for d in deg]
     yl = [y + size * math.sin(np.deg2rad(d)) for d in deg]
     plt.plot(xl, yl, color)
+
+
+def get_fullpath(gate_order, starting_pose, ending_pose):
+    obs = []
+    # Add gates boarders as obstacles
+    repeated_gate = False
+    for gate in gates:
+        # for vertical gate
+        if gate[5] != 0:
+            obs.append([gate[0], gate[1] + gate_width, gate_rad])
+            obs.append([gate[0], gate[1] - gate_width, gate_rad])
+        # for horizontal gate
+        else:
+            obs.append([gate[0] + gate_width, gate[1], gate_rad])
+            obs.append([gate[0] - gate_width, gate[1], gate_rad])
+
+    # Add actual obstacles
+    for obstacle in obstacles:
+        obs.append([obstacle[0], obstacle[1], obs_rad_corrupted])
+
+    obs = np.array(obs)
+    temp_start = starting_pose
+    temp_goals = gates[[gate - 1 for gate in gate_order]][:, [0, 1, 5]]
+    temp_goals[:, 2] = temp_goals[:, 2] + np.pi/2
+    temp_goals = np.vstack((temp_goals, ending_pose))
+    full_path = np.empty((0, 3), float)
+    paths = []
+
+    for i, temp_goal in enumerate(temp_goals):
+
+        print("temp_start:", temp_start)
+        print("temp_goal:", temp_goal)
+
+        rrt_dubins = RRT_dubins_problem(start=temp_start, goal=temp_goal,
+                                        obstacle_list=obs,
+                                        map_area=map_bound,
+                                        max_iter=1000,
+                                        curvature=1 / 0.4)
+        path_node_list = rrt_star_planner(rrt_dubins, False)
+        is_path_valid = check_path(rrt_dubins, path_node_list)
+        path = np.array(get_path(path_node_list))
+        paths.append(path)
+        if not is_path_valid or len(path) == 0:
+            print(f'Test Failed: Given path is not valid\n Visualize the path to debug')
+
+        rx = path[:,0]
+        ry = path[:,1]
+        rt = path[:,2]
+        full_path = np.vstack((full_path, path))
+
+        temp_start = path[-1, 0:3]
+    return full_path, paths
+
+
 if __name__ == '__main__':
     main()
