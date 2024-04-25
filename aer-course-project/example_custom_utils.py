@@ -12,21 +12,25 @@ import random
 import math
 from scipy.integrate import quad
 
-ORDER = [2, 1, 4, 3] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 1.5 #m/s
+ORDER = [1, 3, 4, 2, 1, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
+DRONE_SPEED = 0.85 #m/s
 STEP = 0.4 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
-GATE1YDIFF = -0.04
-GATE2XDIFF = -0.08
-GATE3YDIFF = -0.15
+GATE1YDIFF = 0.075
+GATE2XDIFF = -0.13
+GATE3YDIFF = -0.08
 GATE4XDIFF = -0.01
+# GATE1YDIFF = 0.0
+# GATE2XDIFF = 0.0
+# GATE3YDIFF = 0.0
+# GATE4XDIFF = 0.0
 
 ASCENT_RADIUS = 0.25 # How far away to be when reaching target of 1m
 POLY_DEGREE = 7 #How much to fit to RRT* path
-GATE_STRAIGHT_WEIGHT = 20 #How vital is it to go more straight during gate
+GATE_STRAIGHT_WEIGHT = 30 #How vital is it to go more straight during gate
 #Above should be even number
 
-ADDITIONAL_OBS_BUFFER = -0.01 #Pretty high, could lower
+ADDITIONAL_OBS_BUFFER = 0.03 #Pretty high, could lower
 GATE_BUFFER = 0.1 #How to treat as obstacle, could increase
 
 LIFT_HEIGHT = 0.1 #How high to go up vertically
@@ -373,6 +377,8 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
             print("First 6 flat waypoints: ", flat_waypoints[:6])
             total_traj, latest_start =  shortest_curved_path(flat_waypoints[:6], start_time, dt, obs_bounds, last_segment=False)
         else:
+            if i == 5:
+                DRONE_SPEED = 1.0
             curve, latest_start = shortest_curved_path(flat_waypoints[3*i:3*i+6], latest_start+dt, dt, obs_bounds, last_segment=False)
             total_traj = np.vstack((total_traj, curve))
     print("heading to endpoint")

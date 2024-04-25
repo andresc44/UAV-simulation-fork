@@ -26,7 +26,7 @@ Tips:
         2) cmdFirmware
 
 """
-TESTING = False
+TESTING = True
 # python3 aer-course-project/final_project.py --overrides aer-course-project/getting_started.yaml
 if TESTING:
     YAML_PATH = 'aer-course-project/getting_started.yaml'
