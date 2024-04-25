@@ -13,7 +13,7 @@ from Planners import dubins_path_planning
 # except ImportError:
 #     raise ImportError("Missing planner for dubins_path_problem")
 
-continue_after_goal_reached = False
+continue_after_goal_reached = True
 maximum_iteration_with_goal_reached = 250
 step_size = 0.01
 GlobalSearch = True

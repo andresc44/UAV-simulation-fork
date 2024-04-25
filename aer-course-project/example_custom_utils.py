@@ -35,7 +35,7 @@ plot_rrt_planning = False
 
 def main():
     orders = np.array(list(itertools.permutations([1, 2, 3, 4])))
-    # orders = [[4, 1, 3, 2]]
+    orders = [[4, 2, 3, 2]]
     for order in orders:
         compute_fullpath(order)
     pass
@@ -48,8 +48,28 @@ def compute_fullpath(gate_order):
         os.makedirs(file_name)
 
     obs = []
+    previous_gate = -1
     # Add gates boarders as obstacles
+    repeated_gate = False
     for gate in gates:
+        # if previous_gate == gate:
+        #     temp_gate = gate
+        #     repeated_gate = True
+        #     if temp_gate[5]==0:
+        #         temp_gate[1] = temp_gate[1] + 2 * gate_width
+        #     else:
+        #         temp_gate[0] = temp_gate[0] + 2 * gate_width
+        #     temp_gate[5] = temp_gate[5] + math.pi
+        #     # for vertical gate
+        #     if temp_gate[5] != 0:
+        #         obs.append([temp_gate[0], temp_gate[1] + gate_width, gate_rad])
+        #         obs.append([temp_gate[0], temp_gate[1] - gate_width, gate_rad])
+        #     # for horizontal gate
+        #     else:
+        #         obs.append([temp_gate[0] + gate_width, temp_gate[1], gate_rad])
+        #         obs.append([temp_gate[0] - gate_width, temp_gate[1], gate_rad])
+
+
         # for vertical gate
         if gate[5] != 0:
             obs.append([gate[0], gate[1] + gate_width, gate_rad])
@@ -58,6 +78,7 @@ def compute_fullpath(gate_order):
         else:
             obs.append([gate[0] + gate_width, gate[1], gate_rad])
             obs.append([gate[0] - gate_width, gate[1], gate_rad])
+        previous_gate = gate
 
     # Add actual obstacles
     for obstacle in obstacles:
@@ -90,6 +111,7 @@ def compute_fullpath(gate_order):
         ry = path[:,1]
         rt = path[:,2]
         full_path = np.vstack((full_path, path))
+        np.save(file_name+f'test_path{i}.npy', path)    # .npy extension is added if not given
 
         if plot_rrt_planning:  # pragma: no cover
             plt.plot(rx, ry, "-r")
