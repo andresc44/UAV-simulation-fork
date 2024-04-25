@@ -12,17 +12,21 @@ import random
 import math
 from scipy.integrate import quad
 
-ORDER = [2, 1, 4, 3, 2] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 1.2 #m/s
-STEP = 0.45 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
+ORDER = [2, 1, 4, 3] # Gate Order, Slightly slower for 4, 3, 2, 1
+DRONE_SPEED = 1.5 #m/s
+STEP = 0.4 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
+GATE1YDIFF = -0.04
+GATE2XDIFF = -0.08
+GATE3YDIFF = -0.15
+GATE4XDIFF = -0.01
 
 ASCENT_RADIUS = 0.25 # How far away to be when reaching target of 1m
-POLY_DEGREE = 8 #How much to fit to RRT* path
+POLY_DEGREE = 7 #How much to fit to RRT* path
 GATE_STRAIGHT_WEIGHT = 20 #How vital is it to go more straight during gate
 #Above should be even number
 
-ADDITIONAL_OBS_BUFFER = 0.05 #Pretty high, could lower
+ADDITIONAL_OBS_BUFFER = -0.01 #Pretty high, could lower
 GATE_BUFFER = 0.1 #How to treat as obstacle, could increase
 
 LIFT_HEIGHT = 0.1 #How high to go up vertically
@@ -255,6 +259,12 @@ def load_waypoints(yaml_path):
     order = np.array(order)-1
     cfg = extract_yaml(yaml_path)
     full_gates = np.array(cfg['gates'])[:, (0, 1, 5)]
+    print("full gates before: \n", full_gates)
+    full_gates[0][1] = full_gates[0][1] + GATE1YDIFF
+    full_gates[1][0] = full_gates[1][0] + GATE2XDIFF
+    full_gates[2][1] = full_gates[2][1] + GATE3YDIFF
+    full_gates[3][0] = full_gates[3][0] + GATE4XDIFF
+    print("full gates after: \n", full_gates)
     init_x = cfg['init_state']['init_x']
     init_y = cfg['init_state']['init_y']
     # init_z = LIFT_HEIGHT
@@ -799,6 +809,7 @@ def RRT_star_straight_lines(start_node_coord, end_node_coord, obs_bounds):
 
 def determine_trajectory(csv_path, yaml_path):
     waypoints, _, obs_bounds = load_waypoints(yaml_path)
+    print("waypoints: ", waypoints)
     flat_waypoints = waypoints[1:, :2]
     cfg = extract_yaml(yaml_path)
     ctrl_freq = cfg['ctrl_freq']
