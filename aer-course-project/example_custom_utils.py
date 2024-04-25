@@ -13,7 +13,7 @@ import math
 from scipy.integrate import quad
 
 ORDER = [1, 3, 4, 2, 1, 4] # Gate Order, Slightly slower for 4, 3, 2, 1
-DRONE_SPEED = 0.85 #m/s
+DRONE_SPEED = 0.97 #m/s
 STEP = 0.4 #DISTANCE FROM GATE TO BUFFER WAYPOINTS
 
 GATE1YDIFF = 0.075
@@ -378,7 +378,7 @@ def RRT_star_solver(start_time, dt, flat_waypoints, cfg, obs_bounds):
             total_traj, latest_start =  shortest_curved_path(flat_waypoints[:6], start_time, dt, obs_bounds, last_segment=False)
         else:
             if i == 5:
-                DRONE_SPEED = 1.0
+                DRONE_SPEED = 1.1
             curve, latest_start = shortest_curved_path(flat_waypoints[3*i:3*i+6], latest_start+dt, dt, obs_bounds, last_segment=False)
             total_traj = np.vstack((total_traj, curve))
     print("heading to endpoint")
