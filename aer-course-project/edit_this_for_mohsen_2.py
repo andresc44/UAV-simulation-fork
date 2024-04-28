@@ -114,10 +114,10 @@ class Controller():
         ## visualization
         # Plot trajectory in each dimension and 3D.
         
-        # plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        plot_trajectory(t_scaled, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
         # Draw the trajectory on PyBullet's GUI.
-        draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
+        # draw_trajectory(initial_info, self.waypoints, self.ref_x, self.ref_y, self.ref_z)
 
 
     def planning(self, use_firmware, initial_info):
@@ -128,7 +128,7 @@ class Controller():
         ## generate waypoints for planning
         self.iteration=0
         # Call a function in module `example_custom_utils`.
-        ecu.exampleFunction()
+        # ecu.exampleFunction()
 
         # initial waypoint
         if use_firmware:
@@ -137,9 +137,9 @@ class Controller():
             waypoints = [(self.initial_obs[0], self.initial_obs[2], self.initial_obs[4])]
 
 
-        # order=[4,4,3,2,1]
-        # order=[2,1,3,4]
-        order=[1,3,4,2,1,4]
+        order=[4,4,3,2,1]
+        order=[2,1,3,4]
+        order=[4,2,3,2]
         # order=[3]
         # order=[3,3,3,2,2]
         # order=[3,2]
@@ -155,17 +155,20 @@ class Controller():
         pathhhh=[]
         for i,o in enumerate(order):
             inter=np.load(load_folder+f'test_path{i}.npy')
+            inter[:,2]=1.0
             if i!=0:
-                inter= np.delete(inter, (0), axis=0)
+                # inter= np.delete(inter, (0), axis=0)
+                inter[:,2]=1.0
             
             pathhhh.append(inter)
         final=np.load(load_folder+'test_path_final.npy')
-        final= np.delete(final, (0), axis=0)
+        # final= np.delete(final, (0), axis=0)
+        final[:,2]=1.0
         pathhhh.append(final)
         
         self.time_needed=0
         for i, p in enumerate(pathhhh):
-            
+            speedfactor=40
             # t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
             if i==0:
                 self.waypoints=p
@@ -177,8 +180,8 @@ class Controller():
                 fz = np.poly1d(np.polyfit(t, self.waypoints[:,2], deg))
                 # duration = 2
                 print(f"number of pts for {i}:::::::::::::::",self.waypoints.shape[0])
-                print("time needed this step:",self.waypoints.shape[0]/15)
-                duration = math.ceil(self.waypoints.shape[0]/15)+0.5
+                print("time needed this step:",self.waypoints.shape[0]/speedfactor)
+                duration = math.ceil(self.waypoints.shape[0]/speedfactor)+0
                 self.time_needed+=duration
                 t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
                 self.ref_x = fx(t_scaled)
@@ -211,21 +214,21 @@ class Controller():
                 fz = np.poly1d(np.polyfit(t, temp_waypoint[:,2], deg))
                 # duration = 2
                 print(f"number of pts for {i}:::::::::::::::",temp_waypoint.shape[0])
-                print("time needed this step:", temp_waypoint.shape[0]/15)
-                if temp_waypoint.shape[0]/15<=0.8:
-                    duration=temp_waypoint.shape[0]/15
-                elif i==len(order)-1:
+                print("time needed this step:", temp_waypoint.shape[0]/speedfactor)
+                if temp_waypoint.shape[0]/speedfactor<=0.5:
+                    duration=temp_waypoint.shape[0]/speedfactor
+                elif i==len(order):
 
-                    duration = math.ceil(temp_waypoint.shape[0]/15)-0.5
+                    duration = math.ceil(temp_waypoint.shape[0]/speedfactor)
                 else:
 
-                    duration = math.ceil(temp_waypoint.shape[0]/15)+0.5
+                    duration = math.ceil(temp_waypoint.shape[0]/speedfactor)+0
                 self.time_needed+=duration
                 
                 temp_t_scaled=np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
                 t_scaled = np.append(t_scaled, temp_t_scaled)
                 self.ref_x=np.append(self.ref_x, fx(temp_t_scaled))
-                self.ref_y=np.append(self.ref_y, fy(temp_t_scaled)) 
+                self.ref_y=np.append(self.ref_y, fy(temp_t_scaled))
                 self.ref_z=np.append(self.ref_z, fz(temp_t_scaled))
 
 
@@ -304,27 +307,27 @@ class Controller():
             target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]], dtype=float)
 
         
-            # dt=1/self.CTRL_FREQ
-            # if step==len(self.ref_x) -1 or step==0:
-            #     target_vel = np.zeros(3)
-            #     target_acc = np.zeros(3)
+            dt=1/self.CTRL_FREQ
+            if step==len(self.ref_x) -1 or step==0:
+                target_vel = np.zeros(3)
+                target_acc = np.zeros(3)
                 
-            # else:
-            #     x_vel=(self.ref_x[step+1]-self.ref_x[step])/dt
-            #     y_vel=(self.ref_y[step+1]-self.ref_y[step])/dt
-            #     z_vel=(self.ref_z[step+1]-self.ref_z[step])/dt
-                
-
-            #     prev_x_vel=(self.ref_x[step]-self.ref_x[step-1])/dt
-            #     prev_y_vel=(self.ref_y[step]-self.ref_y[step-1])/dt
-            #     prev_z_vel=(self.ref_z[step]-self.ref_z[step-1])/dt
+            else:
+                x_vel=(self.ref_x[step+1]-self.ref_x[step])/dt
+                y_vel=(self.ref_y[step+1]-self.ref_y[step])/dt
+                z_vel=(self.ref_z[step+1]-self.ref_z[step])/dt
                 
 
-            #     x_acc=(x_vel-prev_x_vel)/dt
-            #     y_acc=(y_vel-prev_y_vel)/dt
-            #     z_acc=(z_vel-prev_z_vel)/dt
-            #     target_vel=np.array([x_vel,y_vel,z_vel])
-            #     target_acc=np.array([x_acc,y_acc,z_acc])
+                prev_x_vel=(self.ref_x[step]-self.ref_x[step-1])/dt
+                prev_y_vel=(self.ref_y[step]-self.ref_y[step-1])/dt
+                prev_z_vel=(self.ref_z[step]-self.ref_z[step-1])/dt
+                
+
+                x_acc=(x_vel-prev_x_vel)/dt
+                y_acc=(y_vel-prev_y_vel)/dt
+                z_acc=(z_vel-prev_z_vel)/dt
+                target_vel=np.array([x_vel,y_vel,z_vel])
+                target_acc=np.array([x_acc,y_acc,z_acc])
 
                 
             # print("vel",target_vel)
