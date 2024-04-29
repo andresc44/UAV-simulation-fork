@@ -26,7 +26,7 @@ Tips:
         2) cmdFirmware
 
 """
-TESTING = True
+TESTING = False
 # python3 aer-course-project/final_project.py --overrides aer-course-project/getting_started.yaml
 if TESTING:
     YAML_PATH = 'aer-course-project/getting_started.yaml'
@@ -139,54 +139,14 @@ class Controller():
         #########################
         # REPLACE THIS (START) ##
         #########################
-        ## generate waypoints for planning
 
-        # Call a function in module `example_custom_utils`.
-        
-
-        # # initial waypoint
-        # if use_firmware:
-        #     waypoints = [(self.initial_obs[0], self.initial_obs[2], initial_info["gate_dimensions"]["tall"]["height"])]  # Height is hardcoded scenario knowledge.
-        # else:
-        #     waypoints = [(self.initial_obs[0], self.initial_obs[2], self.initial_obs[4])]
-
-        # # Example code: hardcode waypoints 
-        # # waypoints.append((-0.5, -3.0, 2.0))
-        # # waypoints.append((-0.5, -2.0, 2.0))
-        # # waypoints.append((-0.5, -1.0, 2.0))
-        # # waypoints.append((-0.5,  0.0, 2.0))
-        # # waypoints.append((-0.5,  1.0, 2.0))
-        # # waypoints.append((-0.5,  2.0, 2.0))
-
-        # gates = np.array(self.NOMINAL_GATES)[:, (0, 1)]
-        # heights = np.full((gates.shape[0], 1), 1.0)
-        # gates = np.concatenate((gates, heights), axis=1)
-
-        # waypoints.append(gates[0].tolist())
-        # waypoints.append(gates[1].tolist())
-        # waypoints.append(gates[2].tolist())
-        # waypoints.append(gates[3].tolist())
-        # # waypoints.append([initial_info["x_reference"][0], initial_info["x_reference"][2], initial_info["x_reference"][4]])
-
-        # # Polynomial fit.
-        # self.waypoints = np.array(waypoints)
-        # deg = 6
-        # t = np.arange(self.waypoints.shape[0])
-        # fx = np.poly1d(np.polyfit(t, self.waypoints[:,0], deg))
-        # fy = np.poly1d(np.polyfit(t, self.waypoints[:,1], deg))
-        # fz = np.poly1d(np.polyfit(t, self.waypoints[:,2], deg))
-        # duration = 10
-        # t_scaled = np.linspace(t[0], t[-1], int(duration*self.CTRL_FREQ))
-        # self.ref_x = fx(t_scaled)
-        # self.ref_y = fy(t_scaled)
-        # self.ref_z = fz(t_scaled)
-
-
+        # Load the trajectory from the csv
         t_scaled, ref_x, ref_y, ref_z = ecu.get_trajectory(CSV_PATH)
         self.ref_x = ref_x
         self.ref_y = ref_y
         self.ref_z = ref_z
 
+        # Load the locations of waypoints for plotting (white spheres)
         waypoints, lift_height, _ = ecu.load_waypoints(YAML_PATH)
         self.lift_height = lift_height
         self.waypoints = waypoints
@@ -236,12 +196,6 @@ class Controller():
         # REPLACE THIS (START) ##
         #########################
 
-        # print("The info. of the gates ")
-        # print(self.NOMINAL_GATES)
-
-        
-        
-
         if iteration == 0:
             height = self.lift_height
             duration = LIFT_DURATION
@@ -249,30 +203,10 @@ class Controller():
             command_type = Command(2)  # Take-off.
             args = [height, duration]
 
-        # [INSTRUCTIONS] Example code for using cmdFullState interface   
+        # Follow CSV file of coordinates for the duration of the full file
         elif iteration >= LIFT_DURATION*self.CTRL_FREQ and iteration < self.end_cmd_iter:
             step = int(min(iteration-LIFT_DURATION*self.CTRL_FREQ, len(self.ref_x) -1))
-            # print(f"{step} out of {len(self.ref_x) -1}")
             target_pos = np.array([self.ref_x[step], self.ref_y[step], self.ref_z[step]])
-            # if step < (len(self.ref_x) -1):
-            #     x_vel = (self.ref_x[step+1] - self.ref_x[step]) * self.CTRL_FREQ
-            #     y_vel = (self.ref_y[step+1] - self.ref_y[step]) * self.CTRL_FREQ
-            #     z_vel = (self.ref_z[step+1] - self.ref_z[step]) * self.CTRL_FREQ
-            #     target_vel = np.array([x_vel, y_vel, z_vel])
-            # else:
-            #     target_vel = np.zeros(3)
-
-            # if step < (len(self.ref_x) -2):
-            #     x_next_vel = (self.ref_x[step+2] - self.ref_x[step+1]) * self.CTRL_FREQ
-            #     y_next_vel = (self.ref_y[step+2] - self.ref_y[step+1]) * self.CTRL_FREQ
-            #     z_next_vel = (self.ref_z[step+2] - self.ref_z[step+1]) * self.CTRL_FREQ
-
-            #     x_acc = (x_next_vel - x_vel) * self.CTRL_FREQ
-            #     y_acc = (y_next_vel - y_vel) * self.CTRL_FREQ
-            #     z_acc = (z_next_vel - z_vel) * self.CTRL_FREQ
-            #     target_acc = np.array([x_acc, y_acc, z_acc])
-            # else:
-            #     target_acc = np.zeros(3)
             target_vel = np.zeros(3)
             target_acc = np.zeros(3)
             target_yaw = 0.
@@ -280,8 +214,6 @@ class Controller():
 
             command_type = Command(1)  # cmdFullState.
 
-            # target_pos = np.array([-0.5, 2, 1])
-            # target_vel = np.array([0, 0.2, 0] )
             args = [target_pos, target_vel, target_acc, target_yaw, target_rpy_rates]
             
 
@@ -289,30 +221,9 @@ class Controller():
             command_type = Command(6)  # Notify setpoint stop.
             args = []
 
-       # [INSTRUCTIONS] Example code for using goTo interface 
-        # elif iteration == 20*self.CTRL_FREQ+1:
-        #     x = self.ref_x[-1]
-        #     y = self.ref_y[-1]
-        #     z = 1.5 
-        #     yaw = 0.
-        #     duration = 2.5
-        #     print("starting goto")
-
-        #     command_type = Command(5)  # goTo.
-        #     args = [[x, y, z], yaw, duration, False]
-
-        # elif iteration == 23*self.CTRL_FREQ:
-        #     x = self.initial_obs[0]
-        #     y = self.initial_obs[2]
-        #     z = 1.5
-        #     yaw = 0.
-        #     duration = 6
-            
-
-        #     command_type = Command(5)  # goTo.
-        #     args = [[x, y, z], yaw, duration, False]
 
         # elif iteration == 30*self.CTRL_FREQ:
+        # Start landing
         elif iteration == self.end_cmd_iter+1:
             height = 0.
             duration = LAND_DURATION
@@ -322,6 +233,7 @@ class Controller():
             ready_to_stop = True
 
         # elif iteration == 33*self.CTRL_FREQ-1:
+        # Stop Drone
         elif iteration >= self.end_cmd_iter + LAND_DURATION*self.CTRL_FREQ:
             command_type = Command(4)  # STOP command to be sent once the trajectory is completed.
             args = []
